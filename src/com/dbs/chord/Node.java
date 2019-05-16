@@ -5,6 +5,7 @@ import com.dbs.chord.operations.SuccessorRequestOperationEntry;
 import com.dbs.network.Listener;
 import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.SuccessorMessage;
+import com.dbs.utils.ConsoleLogger;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -14,6 +15,8 @@ import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Node implements Chord{
 
@@ -44,8 +47,7 @@ public class Node implements Chord{
         this.initNode(nodeInfo);
 
 
-        System.out.println("My id is " + nodeInfo.id);
-        System.out.println("The existing node id is "+ existingNode.id);
+        ConsoleLogger.log(Level.INFO, "Generated ID: " + nodeInfo.id);
 
         this.join(existingNode);
     }
@@ -59,9 +61,6 @@ public class Node implements Chord{
 
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
-
-        System.out.println("My IP is " + nodeInfo.address);
-        System.out.println("My Port is " + nodeInfo.port);
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
@@ -101,13 +100,7 @@ public class Node implements Chord{
     private NodeInfo closestPrecedingNode(BigInteger key) {
         NavigableSet<Integer> fingers = fingerTable.descendingKeySet();
 
-        System.out.println("I am looking for key " + key);
         for (Integer finger : fingers) {
-
-
-            System.out.println("Should I jump to node " + this.fingerTable.get(finger).id + "?");
-            System.out.println("Finger compared to n " + this.fingerTable.get(finger).id.compareTo(this.nodeInfo.id));
-            System.out.println("finger compared to key " + this.fingerTable.get(finger).id.compareTo(key));
 
             if (this.fingerTable.get(finger).id.compareTo(this.nodeInfo.id) > 0
                     && this.fingerTable.get(finger).id.compareTo(key) < 0) {
@@ -137,7 +130,7 @@ public class Node implements Chord{
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
         this.nodeInfo.communicator.send(targetNode.getClientSocket(), msg);
 
-        System.out.println("Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
+        ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
         Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
 
         this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
@@ -153,7 +146,7 @@ public class Node implements Chord{
      * @return
      */
     public void handleSuccessorRequest(SimpleNodeInfo originNode, BigInteger key) throws IOException, NoSuchAlgorithmException {
-        System.out.println("RECEIVED A HANDLE SUCCESSOR REQUEST!!!");
+        ConsoleLogger.log(Level.INFO, "RECEIVED A HANDLE SUCCESSOR REQUEST!!!");
 
 
         //esta func lida com pedidos recebidos no listener, respondendo accordingly
@@ -164,7 +157,6 @@ public class Node implements Chord{
 
         //if this is the starter node, it is responsible for any key for now
         if(this.successor.equals(this.nodeInfo)) {
-            System.out.println("ITS A MEEEE");
             NodeInfo asker = new NodeInfo(originNode);
 
             SuccessorMessage msg = new SuccessorMessage(new SimpleNodeInfo(this.nodeInfo));
@@ -190,7 +182,7 @@ public class Node implements Chord{
         this.predecessor = null;
 
         this.successor = this.requestSuccessor(existingNode, this.nodeInfo.id);
-        System.out.println("My successor is " + this.successor.id);
+        ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
 
 
         //isto ta mal, o nodeinfo passado, e apenas um node existente na rede, nao necessariamente o successor, e preciso ver qual o actual successor

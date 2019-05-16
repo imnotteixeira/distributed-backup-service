@@ -21,7 +21,7 @@ public class Communicator {
     public void send(Socket s, ChordMessage msg) throws IOException {
         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
         out.writeObject(msg);
-        System.out.println("Sending message to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
+//        ConsoleLogger.log(Level.INFO, "Sending message to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
     }
 
     public Object receive() throws IOException, ClassNotFoundException {

@@ -6,6 +6,7 @@ import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.network.messages.ChordMessage;
 import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.SuccessorMessage;
+import com.dbs.utils.ConsoleLogger;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -15,6 +16,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
 
 public class Listener {
 
@@ -27,10 +29,9 @@ public class Listener {
     public void listen(Communicator communicator) {
         while(true) {
             try {
-                System.out.println("Listening for messages on port " + communicator.getPort() +  "...");
+                ConsoleLogger.log(Level.INFO, "Listening for messages on port " + communicator.getPort() +  "...");
                 Object o = communicator.receive();
 
-                System.out.println("Received an Object:");
 
                 MessageHandler.handle(o, this.node);
             } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException e) {
@@ -50,8 +51,6 @@ public class Listener {
                     Communicator communicator = new Communicator(s);
 
                     Object o = communicator.receive();
-
-                    System.out.println("Received an Object:");
 
                     SuccessorMessage msg = (SuccessorMessage) ChordMessage.fromObject(o);
                     nodeInfo = new NodeInfo(msg.getSuccessor());
