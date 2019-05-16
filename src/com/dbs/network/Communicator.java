@@ -1,5 +1,7 @@
 package com.dbs.network;
 
+import com.dbs.network.messages.ChordMessage;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -16,11 +18,10 @@ public class Communicator {
         this.serverSocket = s;
     }
 
-    public void send(Socket s, String msg) throws IOException {
+    public void send(Socket s, ChordMessage msg) throws IOException {
         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
         out.writeObject(msg);
-        System.out.println("Sending message to " +s.getPort() +  "... ");
-        System.out.println("Content: " + msg);
+        System.out.println("Sending message to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
     }
 
     public Object receive() throws IOException, ClassNotFoundException {
@@ -34,5 +35,9 @@ public class Communicator {
 
     public void setServerSocket(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
+    }
+
+    public int getPort() {
+        return this.serverSocket.getLocalPort();
     }
 }

@@ -2,10 +2,13 @@ package com.dbs.chord;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutionException;
 
 public interface Chord {
-    NodeInfo findSuccessor(BigInteger key);
+    NodeInfo findSuccessor(BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
 
-    void join(NodeInfo successorInfo) throws IOException;
+    void create();
+    void join(NodeInfo existingNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
     void notify(NodeInfo successor) throws IOException;
 }

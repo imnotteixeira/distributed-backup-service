@@ -4,6 +4,7 @@ import com.dbs.network.Communicator;
 import com.dbs.utils.ByteToHash;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -23,7 +24,16 @@ public class NodeInfo {
         this.address = address;
         this.port = port;
 
-        this.id = generateId(address, port);
+        if(address == null) {
+            this.id = BigInteger.valueOf(-1);
+        } else {
+            this.id = generateId(address, port);
+
+        }
+    }
+
+    public NodeInfo(SimpleNodeInfo simpleInfo) throws IOException, NoSuchAlgorithmException {
+        this(simpleInfo.address, simpleInfo.port);
     }
 
     private static BigInteger generateId(InetAddress address, int port) throws NoSuchAlgorithmException {
