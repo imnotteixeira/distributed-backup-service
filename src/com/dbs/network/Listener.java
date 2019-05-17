@@ -8,6 +8,7 @@ import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.SuccessorMessage;
 import com.dbs.utils.ConsoleLogger;
 
+import javax.net.ssl.SSLServerSocket;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
@@ -41,7 +42,7 @@ public class Listener {
     }
 
 
-    public Future<NodeInfo> listenOnSocket(ScheduledExecutorService threadPool, ServerSocket s) {
+    public Future<NodeInfo> listenOnSocket(ScheduledExecutorService threadPool, SSLServerSocket s) {
 
         return threadPool.submit(new Callable<NodeInfo>() {
             @Override

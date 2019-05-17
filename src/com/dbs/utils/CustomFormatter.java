@@ -35,7 +35,7 @@ public class CustomFormatter extends Formatter {
         builder.append(levelColor(record.getLevel()));
         builder.append("[").append(record.getLevel()).append("] - ");
         builder.append(formatMessage(record));
-        builder.append("\n");
+        builder.append(ANSI_RESET).append("\n");
         return builder.toString();
     }
 

@@ -13,8 +13,8 @@ import java.util.logging.Level;
 public class Main {
 
     public static void main(String[] args) {
-
-
+        // Necessary for MacOS operating system to prioritize IPv4 interfaces
+        System.setProperty("java.net.preferIPv4Stack", "true");
         try {
 
             int port = Integer.valueOf(args[0]);

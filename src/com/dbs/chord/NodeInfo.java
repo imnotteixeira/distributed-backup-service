@@ -3,6 +3,9 @@ package com.dbs.chord;
 import com.dbs.network.Communicator;
 import com.dbs.utils.ByteToHash;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigInteger;
@@ -16,8 +19,8 @@ public class NodeInfo {
     public final BigInteger id;
     public final InetAddress address;
     public final int port;
-    public ServerSocket serverSocket;
-    public Socket clientSocket;
+    public SSLServerSocket serverSocket;
+    public SSLSocket clientSocket;
     public Communicator communicator;
 
     public NodeInfo(InetAddress address, int port) throws NoSuchAlgorithmException, IOException {
@@ -47,19 +50,19 @@ public class NodeInfo {
         return ByteToHash.convert(rawId, "SHA-256");
     }
 
-    public void setServerSocket(ServerSocket s) {
+    public void setServerSocket(SSLServerSocket s) {
         this.serverSocket = s;
         createOrUpdateCommunicator(s);
     }
 
     public Socket getClientSocket() throws IOException {
         if(this.clientSocket == null) {
-            this.clientSocket = new Socket(this.address, this.port);
+            this.clientSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(this.address, this.port);
         }
         return this.clientSocket;
     }
 
-    private void createOrUpdateCommunicator(ServerSocket s) {
+    private void createOrUpdateCommunicator(SSLServerSocket s) {
         if(communicator == null) {
             this.communicator = new Communicator(s);
         } else {

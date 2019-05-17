@@ -7,16 +7,15 @@ import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.SuccessorMessage;
 import com.dbs.utils.ConsoleLogger;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class Node implements Chord{
 
@@ -124,7 +123,8 @@ public class Node implements Chord{
         //no listener e preciso fazer logica para tratar desta promise
 
 
-        ServerSocket tempSocket = new ServerSocket(0);
+        //ServerSocket tempSocket = new ServerSocket(0);
+        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
@@ -195,7 +195,8 @@ public class Node implements Chord{
     }
 
     private void startListening() throws IOException {
-        ServerSocket s = new ServerSocket(nodeInfo.port);
+        //ServerSocket s = new ServerSocket(nodeInfo.port);
+        SSLServerSocket s = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(nodeInfo.port);
         this.nodeInfo.setServerSocket(s);
         this.listener = new Listener(this);
         
