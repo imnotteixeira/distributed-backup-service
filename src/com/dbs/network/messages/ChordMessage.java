@@ -5,6 +5,7 @@ import com.dbs.chord.Node;
 import java.io.IOException;
 import java.io.Serializable;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutionException;
 
 
 public abstract class ChordMessage implements Serializable {
@@ -32,5 +33,5 @@ public abstract class ChordMessage implements Serializable {
         this.type = type;
     }
 
-    public abstract void handle(Node n) throws IOException, NoSuchAlgorithmException;
+    public abstract void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
 }

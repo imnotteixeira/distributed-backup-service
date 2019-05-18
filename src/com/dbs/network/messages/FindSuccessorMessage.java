@@ -6,6 +6,7 @@ import com.dbs.chord.SimpleNodeInfo;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutionException;
 
 
 /**
@@ -23,7 +24,7 @@ public class FindSuccessorMessage extends ChordMessage {
     }
 
     @Override
-    public void handle(Node n) throws IOException, NoSuchAlgorithmException {
+    public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         n.handleSuccessorRequest(this.originNode, this.key);
     }
 }

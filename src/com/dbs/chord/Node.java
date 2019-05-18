@@ -17,9 +17,11 @@ import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
 
+import static com.dbs.chord.Utils.*;
+
 public class Node implements Chord{
 
-    private static final int NUM_BITS_KEYS = 256;
+
     private static final int THREAD_POOL_SIZE = 10;
     private static final int REQUEST_TIMEOUT_MS = 3000;
 
@@ -77,17 +79,30 @@ public class Node implements Chord{
     }
 
     /**
-     * Returns the successor's NodeInfo for given key
+     * Returns the successor's NodeInfo for given key, or the next hop for the request to be forwarded
      * @param key - key to search
      * @return NodeInfo of successor's node
      */
     @Override
     public NodeInfo findSuccessor(BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        //iniciar pedido, com ref a addr deste node. quando for para responder, usar addr fornecido no pedido
+        //if this is the starter node, it is responsible for any key for now
+        if(this.successor.equals(this.nodeInfo)) {
+            return this.nodeInfo;
+        }
+
+        //if this node currently has no predecessor and the key equals this node's id, this is the responsible node
+        if(this.predecessor == null && key.equals(this.nodeInfo.id)) {
+            return this.nodeInfo;
+        }
+
+        //if there is a predecessor and the key is between predecessor and current node, current node is responsible
+        if(this.predecessor != null && between(key, predecessor.id, this.nodeInfo.id)) {
+            return this.nodeInfo;
+        }
 
         //if key > node && key <= successor
-        if(key.compareTo(this.nodeInfo.id) > 0 && key.compareTo(this.successor.id) <= 0) {
+        if(between(key, this.nodeInfo.id, this.successor.id) || key.equals(this.successor.id)) {
             return this.successor;
         } else {
             NodeInfo nextNode = closestPrecedingNode(key);
@@ -145,34 +160,30 @@ public class Node implements Chord{
      * @param key - key to find
      * @return
      */
-    public void handleSuccessorRequest(SimpleNodeInfo originNode, BigInteger key) throws IOException, NoSuchAlgorithmException {
-        ConsoleLogger.log(Level.INFO, "RECEIVED A HANDLE SUCCESSOR REQUEST!!!");
-
+    public void handleSuccessorRequest(SimpleNodeInfo originNode, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         //esta func lida com pedidos recebidos no listener, respondendo accordingly
         //precisa de ver qual o target para propagar se necessario node com base em fingertable
 
+        NodeInfo successor = this.findSuccessor(key);
+        NodeInfo asker = new NodeInfo(originNode);
 
-        //PERHAPS (REFACTOR -? maybe no need to actually) FIND_SUCCESSOR TO USE HERE?
-
-        //if this is the starter node, it is responsible for any key for now
-        if(this.successor.equals(this.nodeInfo)) {
-            NodeInfo asker = new NodeInfo(originNode);
-
-            SuccessorMessage msg = new SuccessorMessage(new SimpleNodeInfo(this.nodeInfo));
+        //If we already know the actual successor
+        if(successor.equals(this.nodeInfo) || successor.equals(this.successor)) {
+            SuccessorMessage msg = new SuccessorMessage(new SimpleNodeInfo(successor));
             this.nodeInfo.communicator.send(asker.getClientSocket(), msg);
-
+        } else { //else propagate to other target, based on fingerTable
+            FindSuccessorMessage msg = new FindSuccessorMessage(originNode, key);
+            this.nodeInfo.communicator.send(successor.getClientSocket(), msg);
         }
-        //Missing conditions to be the successor
-        //Else propagate to other target, based on fingerTable (call closestPrecedingNode)
+
+
     }
 
     @Override
     public void create() {
-        this.successor = this.nodeInfo;
         this.predecessor = null;
-
-        this.fingerTable.put(1, successor);
+        this.setSuccessor(this.nodeInfo);
     }
 
     @Override
@@ -194,6 +205,11 @@ public class Node implements Chord{
 
     }
 
+    @Override
+    public void handleSucessorNotification(SimpleNodeInfo predecessor) {
+
+    }
+
     private void startListening() throws IOException {
         //ServerSocket s = new ServerSocket(nodeInfo.port);
         SSLServerSocket s = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(nodeInfo.port);
@@ -203,5 +219,10 @@ public class Node implements Chord{
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 
         Future listenFuture = executorService.submit(() -> listener.listen(nodeInfo.communicator));
+    }
+
+    public void setSuccessor(NodeInfo successor) {
+        this.successor = successor;
+        this.fingerTable.put(1, successor);
     }
 }

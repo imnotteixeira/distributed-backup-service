@@ -13,10 +13,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 
 public class Listener {
@@ -35,7 +32,7 @@ public class Listener {
 
 
                 MessageHandler.handle(o, this.node);
-            } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException e) {
+            } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
         }
