@@ -1,14 +1,17 @@
 package com.dbs.chord;
 
 import com.dbs.chord.operations.OperationEntry;
+import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
 import com.dbs.network.Listener;
-import com.dbs.network.messages.FindSuccessorMessage;
-import com.dbs.network.messages.SuccessorMessage;
+import com.dbs.network.NullNodeInfo;
+import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -23,7 +26,8 @@ public class Node implements Chord{
 
 
     private static final int THREAD_POOL_SIZE = 10;
-    private static final int REQUEST_TIMEOUT_MS = 3000;
+    private static final int REQUEST_TIMEOUT_MS = 10000;
+    private static final int STABILIZATION_INTERVAL_MS = 5000;
 
 
     private ScheduledExecutorService threadPool;
@@ -42,7 +46,10 @@ public class Node implements Chord{
 
         this.create();
 
+        this.bootstrapStabilizer();
+
     }
+
     public Node(NodeInfo nodeInfo, NodeInfo existingNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         this.initNode(nodeInfo);
@@ -51,6 +58,8 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.INFO, "Generated ID: " + nodeInfo.id);
 
         this.join(existingNode);
+
+        this.bootstrapStabilizer();
     }
 
     public Node(InetAddress address, int port, NodeInfo successor) throws NoSuchAlgorithmException, IOException, ExecutionException, InterruptedException {
@@ -116,8 +125,7 @@ public class Node implements Chord{
 
         for (Integer finger : fingers) {
 
-            if (this.fingerTable.get(finger).id.compareTo(this.nodeInfo.id) > 0
-                    && this.fingerTable.get(finger).id.compareTo(key) < 0) {
+            if(between(this.fingerTable.get(finger).id, this.nodeInfo.id, key)) {
                 return this.fingerTable.get(finger);
             }
         }
@@ -126,7 +134,7 @@ public class Node implements Chord{
     }
 
     /**
-     * Inserts a Future in the successorRequests HashMap and waits for the future to resolve with given timeout
+     * Inserts a Future in the ongoingOperations Map and waits for the future to resolve with given timeout
      * Sends a TCP message to target node to find the successor of key
      * When this node receives a msg regarding this request, the promise is resovled with the nodeinfo attached and this function returns
      * @param targetNode - node to request
@@ -134,9 +142,6 @@ public class Node implements Chord{
      * @return
      */
     private NodeInfo requestSuccessor(NodeInfo targetNode, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        //esta func cria uma promise e espera q alguem responda
-        //no listener e preciso fazer logica para tratar desta promise
-
 
         //ServerSocket tempSocket = new ServerSocket(0);
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
@@ -154,7 +159,7 @@ public class Node implements Chord{
     }
 
     /**
-     * If this node is the successor, answers back to originNode
+     * If this node is the successor or the predecessor of successor, answers back to originNode
      * Ohterwise, forwards a TCP message to target node to find the successor of key
      * @param originNode - node that requested the information originally
      * @param key - key to find
@@ -162,21 +167,18 @@ public class Node implements Chord{
      */
     public void handleSuccessorRequest(SimpleNodeInfo originNode, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        //esta func lida com pedidos recebidos no listener, respondendo accordingly
-        //precisa de ver qual o target para propagar se necessario node com base em fingertable
 
         NodeInfo successor = this.findSuccessor(key);
         NodeInfo asker = new NodeInfo(originNode);
 
         //If we already know the actual successor
         if(successor.equals(this.nodeInfo) || successor.equals(this.successor)) {
-            SuccessorMessage msg = new SuccessorMessage(new SimpleNodeInfo(successor));
+            SuccessorMessage msg = new SuccessorMessage(key, new SimpleNodeInfo(successor));
             this.nodeInfo.communicator.send(asker.getClientSocket(), msg);
         } else { //else propagate to other target, based on fingerTable
             FindSuccessorMessage msg = new FindSuccessorMessage(originNode, key);
             this.nodeInfo.communicator.send(successor.getClientSocket(), msg);
         }
-
 
     }
 
@@ -196,17 +198,97 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
 
 
-        //isto ta mal, o nodeinfo passado, e apenas um node existente na rede, nao necessariamente o successor, e preciso ver qual o actual successor
-        //notify(successorInfo);
     }
 
     @Override
-    public void notify(NodeInfo successor) throws IOException {
+    public void notify(NodeInfo successor) throws IOException, NoSuchAlgorithmException {
+
+        ConsoleLogger.log(Level.INFO, "Notifying successor " + successor.id + " on port " + successor.getClientSocket().getPort());
+
+        NotifySuccessorMessage msg = new NotifySuccessorMessage(new SimpleNodeInfo(this.nodeInfo));
+
+        this.nodeInfo.communicator.send(successor.getClientSocket(), msg);
 
     }
 
+    /**
+     * potentialPredecessor thinks it might be this node's predecessor
+     * @param potentialPredecessorInfo
+     */
     @Override
-    public void handleSucessorNotification(SimpleNodeInfo predecessor) {
+    public void handlePredecessorNotification(SimpleNodeInfo potentialPredecessorInfo) throws IOException, NoSuchAlgorithmException {
+        ConsoleLogger.log(Level.WARNING, "Received a predecessor NOTIFICATION");
+        NodeInfo potentialPredecessor = new NodeInfo(potentialPredecessorInfo);
+
+        if(this.predecessor == null || between(potentialPredecessor.id, this.predecessor.id, this.nodeInfo.id)) {
+            ConsoleLogger.log(Level.WARNING, "Will update my predecessor from " + this.predecessor + " to " + potentialPredecessor.id);
+            this.setPredecessor(potentialPredecessor);
+        }
+
+    }
+
+    /**
+     * Called periodically. verifies this node's immediate successor, and tells the successor about itself.
+     */
+    @Override
+    public void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException {
+        ConsoleLogger.log(Level.INFO, "Stabilizing Network...");
+
+//        if(this.successor.equals(this.nodeInfo)) {
+//            ConsoleLogger.log(Level.WARNING, "I am my own successor, I am pretty stable for now.");
+//            return;
+//        }
+
+        try {
+            ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
+            NodeInfo x = requestPredecessor(this.successor);
+
+            if(x instanceof NullNodeInfo || between(x.id, this.nodeInfo.id, this.successor.id)) {
+                this.setSuccessor(x);
+                this.notify(this.successor);
+            }
+        } catch (ExecutionException e) {
+            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXEPTION: " + e.getCause());
+        }
+
+
+
+
+
+    }
+
+    private NodeInfo requestPredecessor(NodeInfo node) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        //ServerSocket tempSocket = new ServerSocket(0);
+        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+        FetchPredecessorMessage msg = new FetchPredecessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
+        this.nodeInfo.communicator.send(node.getClientSocket(), msg);
+        ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.getClientSocket().getInetAddress() + ":" + node.getClientSocket().getPort());
+
+        ConsoleLogger.log(Level.INFO,"Waiting for predecessor of " + node.id + " on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
+        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
+
+        this.ongoingOperations.put(new PredecessorRequestOperationEntry(new SimpleNodeInfo(node)), request);
+
+        return request.get();
+    }
+
+    public void handlePredecessorRequest(SimpleNodeInfo originNode) throws IOException, NoSuchAlgorithmException {
+        ConsoleLogger.log(Level.WARNING, "Received a Request for my predecessor.");
+
+        PredecessorMessage msg;
+
+        if(this.predecessor == null) {
+            msg = new PredecessorMessage(new SimpleNodeInfo(this.nodeInfo), new NullNodeInfo());
+        } else {
+            msg = new PredecessorMessage(new SimpleNodeInfo(this.nodeInfo), new SimpleNodeInfo(this.predecessor));
+        }
+
+        SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(originNode.address, originNode.port);
+
+        ConsoleLogger.log(Level.WARNING, "Sending Predecessor info for node on port " + targetSocket.getPort());
+        this.nodeInfo.communicator.send(targetSocket, msg);
 
     }
 
@@ -216,13 +298,48 @@ public class Node implements Chord{
         this.nodeInfo.setServerSocket(s);
         this.listener = new Listener(this);
         
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-
-        Future listenFuture = executorService.submit(() -> listener.listen(nodeInfo.communicator));
+        Future listenFuture = this.threadPool.submit(() -> listener.listen(nodeInfo.communicator));
     }
 
-    public void setSuccessor(NodeInfo successor) {
+    public void setSuccessor(NodeInfo successorInfo) {
+
+        NodeInfo successor;
+        if(successorInfo instanceof NullNodeInfo) {
+            successor = this.nodeInfo;
+        } else {
+            successor = successorInfo;
+        }
+
         this.successor = successor;
         this.fingerTable.put(1, successor);
+    }
+
+    private void setPredecessor(NodeInfo predecessor) {
+        this.predecessor = predecessor;
+    }
+
+    public void concludeOperation(OperationEntry operation) {
+
+        if(this.ongoingOperations.containsKey(operation)) {
+            Future operationFuture = this.ongoingOperations.get(operation);
+            if(!operationFuture.isDone()) {
+                operationFuture.cancel(true);
+            }
+            this.ongoingOperations.remove(operation);
+        }
+    }
+
+    private void bootstrapStabilizer() {
+        this.threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                stabilize();
+            } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }, 2000, STABILIZATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    public ScheduledExecutorService getThreadPool() {
+        return threadPool;
     }
 }

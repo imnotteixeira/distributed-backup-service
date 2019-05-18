@@ -13,6 +13,8 @@ public interface Chord {
 
     void create();
     void join(NodeInfo existingNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
-    void notify(NodeInfo successor) throws IOException;
-    void handleSucessorNotification(SimpleNodeInfo predecessor);
+    void notify(NodeInfo successor) throws IOException, NoSuchAlgorithmException;
+    void handlePredecessorNotification(SimpleNodeInfo predecessor) throws IOException, NoSuchAlgorithmException;
+
+    void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException;
 }

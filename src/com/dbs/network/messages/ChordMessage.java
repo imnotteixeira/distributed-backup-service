@@ -16,6 +16,14 @@ public abstract class ChordMessage implements Serializable {
             switch (msg.type) {
                 case FIND_SUCCESSOR:
                     return (FindSuccessorMessage) obj;
+                case FETCH_PREDECESSOR:
+                    return (FetchPredecessorMessage) obj;
+                case NOTIFY_SUCCESSOR:
+                    return (NotifySuccessorMessage) obj;
+                case SUCCESSOR:
+                    return (SuccessorMessage) obj;
+                case PREDECESSOR:
+                    return (PredecessorMessage) obj;
                 default:
                     return msg;
             }
@@ -23,8 +31,11 @@ public abstract class ChordMessage implements Serializable {
     }
 
     public enum MESSAGE_TYPE {
+        FETCH_PREDECESSOR,
         FIND_SUCCESSOR,
-        SUCCESSOR
+        SUCCESSOR,
+        PREDECESSOR,
+        NOTIFY_SUCCESSOR
     }
 
     private MESSAGE_TYPE type;

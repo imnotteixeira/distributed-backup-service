@@ -5,13 +5,12 @@ import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.network.messages.ChordMessage;
 import com.dbs.network.messages.FindSuccessorMessage;
+import com.dbs.network.messages.NodeInfoMessage;
 import com.dbs.network.messages.SuccessorMessage;
 import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
 import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -25,14 +24,26 @@ public class Listener {
     }
 
     public void listen(Communicator communicator) {
+        ConsoleLogger.log(Level.INFO, "Listening for messages on port " + communicator.getPort() +  "...");
+
         while(true) {
             try {
-                ConsoleLogger.log(Level.INFO, "Listening for messages on port " + communicator.getPort() +  "...");
+                ConsoleLogger.log(Level.SEVERE, "Listening again... On socket port " + communicator.getPort());
+
                 Object o = communicator.receive();
+                ConsoleLogger.log(Level.WARNING, "Received an Object...");
 
 
-                MessageHandler.handle(o, this.node);
-            } catch (IOException | ClassNotFoundException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {
+                this.node.getThreadPool().execute(()-> {
+                    try {
+                        MessageHandler.handle(o, this.node);
+                    } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                });
+
+
+            } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
         }
@@ -43,19 +54,21 @@ public class Listener {
 
         return threadPool.submit(new Callable<NodeInfo>() {
             @Override
-            public NodeInfo call() throws IOException, NoSuchAlgorithmException {
+            public NodeInfo call() throws IOException, NoSuchAlgorithmException, ClassNotFoundException {
                 NodeInfo nodeInfo = new NullNodeInfo();
-                try {
-                    Communicator communicator = new Communicator(s);
 
-                    Object o = communicator.receive();
+                Communicator communicator = new Communicator(s);
 
-                    SuccessorMessage msg = (SuccessorMessage) ChordMessage.fromObject(o);
-                    nodeInfo = new NodeInfo(msg.getSuccessor());
-                } catch (IOException | ClassNotFoundException e) {
-                    e.printStackTrace();
+                Object o = communicator.receive();
+
+                ConsoleLogger.log(Level.INFO, "Received a Message on port " + s.getLocalPort());
+
+                NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
+                if (!(msg.getNode() instanceof NullSimpleNodeInfo)) {
+                    nodeInfo = new NodeInfo(msg.getNode());
                 }
 
+                s.close();
                 return nodeInfo;
             }
         });

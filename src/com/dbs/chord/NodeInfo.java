@@ -55,7 +55,7 @@ public class NodeInfo {
         createOrUpdateCommunicator(s);
     }
 
-    public Socket getClientSocket() throws IOException {
+    public SSLSocket getClientSocket() throws IOException {
         if(this.clientSocket == null) {
             this.clientSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(this.address, this.port);
         }
