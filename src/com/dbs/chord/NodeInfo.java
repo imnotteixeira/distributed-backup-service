@@ -56,7 +56,7 @@ public class NodeInfo {
     }
 
     public SSLSocket getClientSocket() throws IOException {
-        if(this.clientSocket == null) {
+        if(this.clientSocket == null || this.clientSocket.isClosed()) {
             this.clientSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(this.address, this.port);
         }
         return this.clientSocket;

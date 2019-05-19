@@ -24,14 +24,22 @@ public class Communicator {
     public void send(SSLSocket s, ChordMessage msg) throws IOException {
         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
         out.writeObject(msg);
-//        ConsoleLogger.log(Level.INFO, "Sending message to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
+
+        s.close();
+        ConsoleLogger.log(Level.SEVERE, "Sent message " + msg + " to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
     }
 
     public Object receive() throws IOException, ClassNotFoundException {
 
+        ConsoleLogger.log(Level.SEVERE, this + " communicator.receive(), will call accept, which blocks");
+
         SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
+        ConsoleLogger.log(Level.SEVERE, this + " accept() caught something");
+
         ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
         Object o = in.readObject();
+
+        ConsoleLogger.log(Level.SEVERE, "Read object inside communicator receive "+ o.getClass());
 
         return o;
     }

@@ -5,10 +5,12 @@ import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.NullSimpleNodeInfo;
+import com.dbs.utils.ConsoleLogger;
 
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 
 public class PredecessorMessage extends NodeInfoMessage {
 
@@ -26,6 +28,7 @@ public class PredecessorMessage extends NodeInfoMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        ConsoleLogger.log(Level.WARNING, "Received PREDECESSOR Message");
         n.concludeOperation(new PredecessorRequestOperationEntry(sender));
     }
 

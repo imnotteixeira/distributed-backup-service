@@ -11,6 +11,7 @@ import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -24,25 +25,29 @@ public class Listener {
     }
 
     public void listen(Communicator communicator) {
-        ConsoleLogger.log(Level.INFO, "Listening for messages on port " + communicator.getPort() +  "...");
+        ConsoleLogger.log(Level.INFO, "called listen() ::  Listening for messages on port " + communicator.getPort() +  "...");
 
         while(true) {
             try {
-                ConsoleLogger.log(Level.SEVERE, "Listening again... On socket port " + communicator.getPort());
+                ConsoleLogger.log(Level.SEVERE, "Inside listen while()... About to call comunicator.receive()");
 
                 Object o = communicator.receive();
-                ConsoleLogger.log(Level.WARNING, "Received an Object...");
 
 
-                this.node.getThreadPool().execute(()-> {
+                ConsoleLogger.log(Level.SEVERE, "Creating a new thread to process received stuff...");
+                this.node.getThreadPool().execute(() -> {
                     try {
+                        ConsoleLogger.log(Level.SEVERE, "Will call handle()");
                         MessageHandler.handle(o, this.node);
+
+                        ConsoleLogger.log(Level.SEVERE, "thread that handles has finished");
                     } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
                         e.printStackTrace();
                     }
                 });
 
-
+            } catch (SocketTimeoutException e) {
+                System.out.println("SOCKET TIMEOUT ON COMM " + communicator);
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
@@ -54,10 +59,15 @@ public class Listener {
 
         return threadPool.submit(new Callable<NodeInfo>() {
             @Override
-            public NodeInfo call() throws IOException, NoSuchAlgorithmException, ClassNotFoundException {
-                NodeInfo nodeInfo = new NullNodeInfo();
+            public NodeInfo call() throws IOException, NoSuchAlgorithmException, ClassNotFoundException, ExecutionException, InterruptedException {
 
                 Communicator communicator = new Communicator(s);
+                try {
+
+
+                NodeInfo nodeInfo = new NullNodeInfo();
+
+
 
                 Object o = communicator.receive();
 
@@ -67,9 +77,14 @@ public class Listener {
                 if (!(msg.getNode() instanceof NullSimpleNodeInfo)) {
                     nodeInfo = new NodeInfo(msg.getNode());
                 }
+                msg.handle(node);
 
                 s.close();
                 return nodeInfo;
+                } catch (SocketTimeoutException e) {
+                    System.out.println("SOCKET TIMEOUT ON COMM" + communicator);
+                    return new NullNodeInfo();
+                }
             }
         });
     }

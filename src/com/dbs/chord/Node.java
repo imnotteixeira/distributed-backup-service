@@ -26,8 +26,8 @@ public class Node implements Chord{
 
 
     private static final int THREAD_POOL_SIZE = 10;
-    private static final int REQUEST_TIMEOUT_MS = 10000;
-    private static final int STABILIZATION_INTERVAL_MS = 5000;
+    private static final int REQUEST_TIMEOUT_MS = 5000;
+    private static final int STABILIZATION_INTERVAL_MS = 10000;
 
 
     private ScheduledExecutorService threadPool;
@@ -147,11 +147,14 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
+        ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
+
+        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
+
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
         this.nodeInfo.communicator.send(targetNode.getClientSocket(), msg);
 
-        ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
-        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
+
 
         this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
 
@@ -248,7 +251,8 @@ public class Node implements Chord{
                 this.notify(this.successor);
             }
         } catch (ExecutionException e) {
-            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXEPTION: " + e.getCause());
+            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXEPTION: " + e.getCause() + "\n");
+            e.printStackTrace();
         }
 
 
@@ -262,12 +266,16 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
+        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
+
         FetchPredecessorMessage msg = new FetchPredecessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
         this.nodeInfo.communicator.send(node.getClientSocket(), msg);
+
+
         ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.getClientSocket().getInetAddress() + ":" + node.getClientSocket().getPort());
 
         ConsoleLogger.log(Level.INFO,"Waiting for predecessor of " + node.id + " on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
-        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
+
 
         this.ongoingOperations.put(new PredecessorRequestOperationEntry(new SimpleNodeInfo(node)), request);
 
