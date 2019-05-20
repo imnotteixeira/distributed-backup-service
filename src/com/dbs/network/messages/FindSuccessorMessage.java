@@ -2,11 +2,13 @@ package com.dbs.network.messages;
 
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
+import com.dbs.utils.ConsoleLogger;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 
 
 /**
@@ -25,6 +27,16 @@ public class FindSuccessorMessage extends ChordMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        ConsoleLogger.log(Level.WARNING, "Received FETCH SUCCESSOR Message");
+
         n.handleSuccessorRequest(this.originNode, this.key);
+    }
+
+    @Override
+    public String toString() {
+        return "FindSuccessorMessage{" +
+                "originNode=" + originNode.toString() +
+                ", key=" + key +
+                '}';
     }
 }

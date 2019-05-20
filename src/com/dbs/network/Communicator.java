@@ -25,21 +25,21 @@ public class Communicator {
         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
         out.writeObject(msg);
 
+        out.close();
         s.close();
-        ConsoleLogger.log(Level.SEVERE, "Sent message " + msg + " to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
+//        ConsoleLogger.log(Level.SEVERE, "Sent message " + msg + " to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
     }
 
     public Object receive() throws IOException, ClassNotFoundException {
 
-        ConsoleLogger.log(Level.SEVERE, this + " communicator.receive(), will call accept, which blocks");
 
         SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
-        ConsoleLogger.log(Level.SEVERE, this + " accept() caught something");
+//        ConsoleLogger.log(Level.SEVERE, "Received a message from " + clientSocket.getLocalPort());
 
         ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
         Object o = in.readObject();
 
-        ConsoleLogger.log(Level.SEVERE, "Read object inside communicator receive "+ o.getClass());
+        in.close();
 
         return o;
     }

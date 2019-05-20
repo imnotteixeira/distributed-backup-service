@@ -1,6 +1,9 @@
 package com.dbs.chord;
 
+import com.dbs.utils.ConsoleLogger;
+
 import java.math.BigInteger;
+import java.util.logging.Level;
 
 public class Utils {
     public static boolean between(BigInteger middle, BigInteger left, BigInteger right) {

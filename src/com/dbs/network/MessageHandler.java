@@ -12,7 +12,6 @@ import java.util.logging.Level;
 public class MessageHandler {
 
     public static void handle(Object obj, Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        ConsoleLogger.log(Level.SEVERE, "Inside generic handle function");
         ChordMessage msg = ChordMessage.fromObject(obj);
         msg.handle(n);
     }

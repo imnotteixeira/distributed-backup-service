@@ -17,4 +17,12 @@ public class SimpleNodeInfo implements Serializable {
     public SimpleNodeInfo(NodeInfo nodeInfo) throws IOException, NoSuchAlgorithmException {
         this(nodeInfo.address, nodeInfo.port);
     }
+
+    @Override
+    public String toString() {
+        return "SimpleNodeInfo{" +
+                "address=" + address +
+                ", port=" + port +
+                '}';
+    }
 }

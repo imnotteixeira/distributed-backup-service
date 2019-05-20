@@ -25,29 +25,24 @@ public class Listener {
     }
 
     public void listen(Communicator communicator) {
-        ConsoleLogger.log(Level.INFO, "called listen() ::  Listening for messages on port " + communicator.getPort() +  "...");
+
 
         while(true) {
             try {
-                ConsoleLogger.log(Level.SEVERE, "Inside listen while()... About to call comunicator.receive()");
 
                 Object o = communicator.receive();
 
-
-                ConsoleLogger.log(Level.SEVERE, "Creating a new thread to process received stuff...");
                 this.node.getThreadPool().execute(() -> {
                     try {
-                        ConsoleLogger.log(Level.SEVERE, "Will call handle()");
                         MessageHandler.handle(o, this.node);
 
-                        ConsoleLogger.log(Level.SEVERE, "thread that handles has finished");
                     } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
                         e.printStackTrace();
                     }
                 });
 
             } catch (SocketTimeoutException e) {
-                System.out.println("SOCKET TIMEOUT ON COMM " + communicator);
+//                System.out.println("SOCKET TIMEOUT ON COMM " + communicator);
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
@@ -64,14 +59,10 @@ public class Listener {
                 Communicator communicator = new Communicator(s);
                 try {
 
-
                 NodeInfo nodeInfo = new NullNodeInfo();
-
-
 
                 Object o = communicator.receive();
 
-                ConsoleLogger.log(Level.INFO, "Received a Message on port " + s.getLocalPort());
 
                 NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
                 if (!(msg.getNode() instanceof NullSimpleNodeInfo)) {
@@ -79,10 +70,11 @@ public class Listener {
                 }
                 msg.handle(node);
 
-                s.close();
+
                 return nodeInfo;
                 } catch (SocketTimeoutException e) {
-                    System.out.println("SOCKET TIMEOUT ON COMM" + communicator);
+                    System.out.println("SOCKET TIMEOUT" + communicator);
+                    s.close();
                     return new NullNodeInfo();
                 }
             }

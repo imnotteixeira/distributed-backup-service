@@ -26,7 +26,7 @@ public class Node implements Chord{
 
 
     private static final int THREAD_POOL_SIZE = 10;
-    private static final int REQUEST_TIMEOUT_MS = 5000;
+    private static final int REQUEST_TIMEOUT_MS = 15000;
     private static final int STABILIZATION_INTERVAL_MS = 10000;
 
 
@@ -46,7 +46,6 @@ public class Node implements Chord{
 
         this.create();
 
-        this.bootstrapStabilizer();
 
     }
 
@@ -54,12 +53,8 @@ public class Node implements Chord{
 
         this.initNode(nodeInfo);
 
-
-        ConsoleLogger.log(Level.INFO, "Generated ID: " + nodeInfo.id);
-
         this.join(existingNode);
 
-        this.bootstrapStabilizer();
     }
 
     public Node(InetAddress address, int port, NodeInfo successor) throws NoSuchAlgorithmException, IOException, ExecutionException, InterruptedException {
@@ -71,6 +66,11 @@ public class Node implements Chord{
 
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
+
+        ConsoleLogger.log(Level.INFO, "Generated ID: " + nodeInfo.id);
+
+        ConsoleLogger.log(Level.INFO, "Generated ID (mod 2^256): " + nodeInfo.id.mod(BigInteger.valueOf(2).pow(Chord.NUM_BITS_KEYS)));
+
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
@@ -147,14 +147,13 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
+        FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
+
         ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
 
         Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
 
-        FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
         this.nodeInfo.communicator.send(targetNode.getClientSocket(), msg);
-
-
 
         this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
 
@@ -187,18 +186,22 @@ public class Node implements Chord{
 
     @Override
     public void create() {
-        this.predecessor = null;
+        this.setPredecessor(null);
         this.setSuccessor(this.nodeInfo);
+
+        this.bootstrapStabilizer();
     }
 
     @Override
     public void join(NodeInfo existingNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
 
-        this.predecessor = null;
+        this.setPredecessor(null);
 
-        this.successor = this.requestSuccessor(existingNode, this.nodeInfo.id);
-        ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
+        this.setSuccessor(this.requestSuccessor(existingNode, this.nodeInfo.id));
+//        ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
+
+        this.bootstrapStabilizer();
 
 
     }
@@ -220,11 +223,10 @@ public class Node implements Chord{
      */
     @Override
     public void handlePredecessorNotification(SimpleNodeInfo potentialPredecessorInfo) throws IOException, NoSuchAlgorithmException {
-        ConsoleLogger.log(Level.WARNING, "Received a predecessor NOTIFICATION");
+        ConsoleLogger.log(Level.WARNING, "Received a potential predecessor NOTIFICATION from node at port " + potentialPredecessorInfo.port);
         NodeInfo potentialPredecessor = new NodeInfo(potentialPredecessorInfo);
 
-        if(this.predecessor == null || between(potentialPredecessor.id, this.predecessor.id, this.nodeInfo.id)) {
-            ConsoleLogger.log(Level.WARNING, "Will update my predecessor from " + this.predecessor + " to " + potentialPredecessor.id);
+        if(this.predecessor == null || this.predecessor.id.equals(this.nodeInfo.id) || between(potentialPredecessor.id, this.predecessor.id, this.nodeInfo.id)) {
             this.setPredecessor(potentialPredecessor);
         }
 
@@ -237,27 +239,36 @@ public class Node implements Chord{
     public void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException {
         ConsoleLogger.log(Level.INFO, "Stabilizing Network...");
 
-//        if(this.successor.equals(this.nodeInfo)) {
-//            ConsoleLogger.log(Level.WARNING, "I am my own successor, I am pretty stable for now.");
-//            return;
-//        }
+
 
         try {
             ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
             NodeInfo x = requestPredecessor(this.successor);
 
-            if(x instanceof NullNodeInfo || between(x.id, this.nodeInfo.id, this.successor.id)) {
+            ConsoleLogger.log(Level.SEVERE, "My predecessor (x) is " + x.id);
+
+            //if this request fails, it means my successor prolly is offline, must update stuffs
+            //TOODODODODODO
+
+
+            //edge case of first stabilization
+            if(x instanceof NullNodeInfo) {
                 this.setSuccessor(x);
-                this.notify(this.successor);
+            } else {
+                if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
+                    this.setSuccessor(x);
+                } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
+                    if(after(predecessor.id, this.nodeInfo.id)) {
+                        this.setSuccessor(this.predecessor);
+                    }
+                }
             }
+            this.notify(this.successor);
+
         } catch (ExecutionException e) {
-            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXEPTION: " + e.getCause() + "\n");
+            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXCEPTION: " + e.getCause() + "\n");
             e.printStackTrace();
         }
-
-
-
-
 
     }
 
@@ -320,10 +331,20 @@ public class Node implements Chord{
 
         this.successor = successor;
         this.fingerTable.put(1, successor);
+
+        ConsoleLogger.log(Level.INFO, "My successor is now " + successor.id);
     }
 
     private void setPredecessor(NodeInfo predecessor) {
         this.predecessor = predecessor;
+
+        if(predecessor != null) {
+            ConsoleLogger.log(Level.INFO, "My predecessor is now " + predecessor.id);
+        } else {
+            ConsoleLogger.log(Level.INFO, "My predecessor is now null");
+        }
+
+
     }
 
     public void concludeOperation(OperationEntry operation) {
