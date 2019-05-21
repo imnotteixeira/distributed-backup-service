@@ -199,7 +199,11 @@ public class Node implements Chord{
 
         this.setPredecessor(null);
 
-        this.setSuccessor(this.requestSuccessor(existingNode, this.nodeInfo.id));
+
+        NodeInfo succ = this.requestSuccessor(existingNode, this.nodeInfo.id);
+        ConsoleLogger.log(Level.SEVERE, "I WAS ASSIGNED THE SUCCESSOR: " + succ.id);
+
+        this.setSuccessor(succ);
 //        ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
 
         this.bootstrapStabilizer();
@@ -245,8 +249,6 @@ public class Node implements Chord{
         try {
             ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
             NodeInfo x = requestPredecessor(this.successor);
-
-            ConsoleLogger.log(Level.SEVERE, "My predecessor (x) is " + x.id);
 
             //if this request fails, it means my successor prolly is offline, must update stuffs
             //TOODODODODODO
@@ -332,16 +334,16 @@ public class Node implements Chord{
         this.successor = successor;
         this.fingerTable.put(1, successor);
 
-        ConsoleLogger.log(Level.INFO, "My successor is now " + successor.id);
+        ConsoleLogger.log(Level.SEVERE, "My successor is now " + successor.id);
     }
 
     private void setPredecessor(NodeInfo predecessor) {
         this.predecessor = predecessor;
 
         if(predecessor != null) {
-            ConsoleLogger.log(Level.INFO, "My predecessor is now " + predecessor.id);
+            ConsoleLogger.log(Level.SEVERE, "My predecessor is now " + predecessor.id);
         } else {
-            ConsoleLogger.log(Level.INFO, "My predecessor is now null");
+            ConsoleLogger.log(Level.SEVERE, "My predecessor is now null");
         }
 
 
