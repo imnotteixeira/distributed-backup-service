@@ -25,7 +25,6 @@ public class Communicator {
         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
         out.writeObject(msg);
 
-        out.close();
         s.close();
 //        ConsoleLogger.log(Level.SEVERE, "Sent message " + msg + " to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
     }
@@ -39,7 +38,7 @@ public class Communicator {
         ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
         Object o = in.readObject();
 
-        in.close();
+        clientSocket.close();
 
         return o;
     }

@@ -29,7 +29,6 @@ public class Listener {
 
         while(true) {
             try {
-
                 Object o = communicator.receive();
 
                 this.node.getThreadPool().execute(() -> {
