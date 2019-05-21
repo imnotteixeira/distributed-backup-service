@@ -3,6 +3,7 @@ package com.dbs.filemanager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
@@ -37,6 +38,19 @@ public class FileManager {
 
     }
 
+    public static int deleteFile(String filePath) {
+
+        Path path = Paths.get(filePath);
+
+        try {
+            AsynchronousFileChannel.open(path, DELETE_ON_CLOSE);
+            return 0;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
     public static int writeToFile(String filePath, ByteBuffer data, long filePosition) {
 
         Path path = Paths.get(filePath);
@@ -61,13 +75,19 @@ public class FileManager {
         }
     }
 
-    public static void main(String[] args) {
-        ByteBuffer data = ByteBuffer.wrap("cenascenascenas".getBytes());
-        System.out.println(FileManager.writeToFile("out.txt", data, 0));
+    /**
+     *
+     * @param directoryName directory Name
+     * @return Returns 0 on success and -1 if directory already exists
+     */
+    public static int createDirectory(String directoryName) {
 
-        ByteBuffer data1 = ByteBuffer.allocate(1024);
-        System.out.println(FileManager.readFromFile("out.txt", data1, 0));
-        System.out.println(new String(data1.array()).trim());
+        try {
+            Files.createDirectory(Paths.get(directoryName));
+        } catch (IOException e) {
+            return -1;
+        }
+
+        return 0;
     }
-
 }
