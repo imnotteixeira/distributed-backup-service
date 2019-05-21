@@ -259,9 +259,7 @@ public class Node implements Chord{
                 if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
                     this.setSuccessor(x);
                 } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
-                    if(after(predecessor.id, this.nodeInfo.id)) {
-                        this.setSuccessor(this.predecessor);
-                    }
+                    this.setSuccessor(this.predecessor);
                 }
             }
             this.notify(this.successor);
