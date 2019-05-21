@@ -7,7 +7,7 @@ import java.util.concurrent.ExecutionException;
 
 public interface Chord {
 
-    int NUM_BITS_KEYS = 256;
+    int NUM_BITS_KEYS = 64;
 
     NodeInfo findSuccessor(BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
 

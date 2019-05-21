@@ -3,7 +3,7 @@ package com.dbs.chord;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
-import com.dbs.network.Listener;
+import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
@@ -31,7 +31,7 @@ public class Node implements Chord{
 
 
     private ScheduledExecutorService threadPool;
-    private Listener listener;
+    private Communicator communicator;
 
     private ConcurrentHashMap<OperationEntry, Future<NodeInfo>> ongoingOperations;
     private ConcurrentSkipListMap<Integer, NodeInfo> fingerTable;
@@ -45,7 +45,6 @@ public class Node implements Chord{
         this.initNode(nodeInfo);
 
         this.create();
-
 
     }
 
@@ -149,11 +148,13 @@ public class Node implements Chord{
 
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
 
+        SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(targetNode.address, targetNode.port);
+
+        this.communicator.send(targetSocket, msg);
+
         ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
 
-        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
-
-        this.nodeInfo.communicator.send(targetNode.getClientSocket(), msg);
+        Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
 
         this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
 
@@ -176,10 +177,10 @@ public class Node implements Chord{
         //If we already know the actual successor
         if(successor.equals(this.nodeInfo) || successor.equals(this.successor)) {
             SuccessorMessage msg = new SuccessorMessage(key, new SimpleNodeInfo(successor));
-            this.nodeInfo.communicator.send(asker.getClientSocket(), msg);
+            this.communicator.send(Utils.createClientSocket(asker.address, asker.port), msg);
         } else { //else propagate to other target, based on fingerTable
             FindSuccessorMessage msg = new FindSuccessorMessage(originNode, key);
-            this.nodeInfo.communicator.send(successor.getClientSocket(), msg);
+            this.communicator.send(Utils.createClientSocket(successor.address, successor.port), msg);
         }
 
     }
@@ -209,11 +210,11 @@ public class Node implements Chord{
     @Override
     public void notify(NodeInfo successor) throws IOException, NoSuchAlgorithmException {
 
-        ConsoleLogger.log(Level.INFO, "Notifying successor " + successor.id + " on port " + successor.getClientSocket().getPort());
+        ConsoleLogger.log(Level.INFO, "Notifying successor " + successor.id + " on port " + successor.port);
 
         NotifySuccessorMessage msg = new NotifySuccessorMessage(new SimpleNodeInfo(this.nodeInfo));
 
-        this.nodeInfo.communicator.send(successor.getClientSocket(), msg);
+        this.communicator.send(Utils.createClientSocket(successor.address, successor.port), msg);
 
     }
 
@@ -277,13 +278,14 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        Future<NodeInfo> request = this.listener.listenOnSocket(this.threadPool, tempSocket);
-
         FetchPredecessorMessage msg = new FetchPredecessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
-        this.nodeInfo.communicator.send(node.getClientSocket(), msg);
+
+        this.communicator.send(Utils.createClientSocket(node.address, node.port), msg);
 
 
-        ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.getClientSocket().getInetAddress() + ":" + node.getClientSocket().getPort());
+        Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
+
+        ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.address + ":" + node.port);
 
         ConsoleLogger.log(Level.INFO,"Waiting for predecessor of " + node.id + " on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
 
@@ -307,17 +309,17 @@ public class Node implements Chord{
         SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(originNode.address, originNode.port);
 
         ConsoleLogger.log(Level.WARNING, "Sending Predecessor info for node on port " + targetSocket.getPort());
-        this.nodeInfo.communicator.send(targetSocket, msg);
+        this.communicator.send(targetSocket, msg);
 
     }
 
     private void startListening() throws IOException {
         //ServerSocket s = new ServerSocket(nodeInfo.port);
-        SSLServerSocket s = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(nodeInfo.port);
-        this.nodeInfo.setServerSocket(s);
-        this.listener = new Listener(this);
-        
-        Future listenFuture = this.threadPool.submit(() -> listener.listen(nodeInfo.communicator));
+        SSLServerSocket serverSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(this.nodeInfo.port);
+
+        this.communicator = new Communicator(this, serverSocket);
+
+        this.communicator.listen();
     }
 
     public void setSuccessor(NodeInfo successorInfo) {

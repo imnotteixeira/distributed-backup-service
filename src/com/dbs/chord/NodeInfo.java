@@ -19,19 +19,15 @@ public class NodeInfo {
     public final BigInteger id;
     public final InetAddress address;
     public final int port;
-    public SSLServerSocket serverSocket;
-    public SSLSocket clientSocket;
-    public Communicator communicator;
 
-    public NodeInfo(InetAddress address, int port) throws NoSuchAlgorithmException, IOException {
+    public NodeInfo(InetAddress address, int port) throws NoSuchAlgorithmException {
         this.address = address;
         this.port = port;
 
         if(address == null) {
             this.id = BigInteger.valueOf(-1);
         } else {
-            this.id = generateId(address, port);
-
+            this.id = generateId(address, port).mod(BigInteger.valueOf(2).pow(Chord.NUM_BITS_KEYS));
         }
     }
 
@@ -48,26 +44,6 @@ public class NodeInfo {
         rawId[7] = (byte) port;
 
         return ByteToHash.convert(rawId, "SHA-256");
-    }
-
-    public void setServerSocket(SSLServerSocket s) {
-        this.serverSocket = s;
-        createOrUpdateCommunicator(s);
-    }
-
-    public SSLSocket getClientSocket() throws IOException {
-        if(this.clientSocket == null || this.clientSocket.isClosed()) {
-            this.clientSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(this.address, this.port);
-        }
-        return this.clientSocket;
-    }
-
-    private void createOrUpdateCommunicator(SSLServerSocket s) {
-        if(communicator == null) {
-            this.communicator = new Communicator(s);
-        } else {
-            this.communicator.setServerSocket(s);
-        }
     }
 
 }

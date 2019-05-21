@@ -1,53 +1,103 @@
 package com.dbs.network;
 
+import com.dbs.chord.Node;
+import com.dbs.chord.NodeInfo;
 import com.dbs.network.messages.ChordMessage;
+import com.dbs.network.messages.FindSuccessorMessage;
+import com.dbs.network.messages.NodeInfoMessage;
 import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 
 public class Communicator {
 
 
     private SSLServerSocket serverSocket = null;
+    private Node node;
 
 
-    public Communicator(SSLServerSocket s) {
+
+    public Communicator(Node n, SSLServerSocket s) {
+        this.node = n;
         this.serverSocket = s;
     }
 
-    public void send(SSLSocket s, ChordMessage msg) throws IOException {
-        ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-        out.writeObject(msg);
+    public void listen() {
+        node.getThreadPool().submit(() -> {
+            while(true){
+                SSLSocket s = (SSLSocket) serverSocket.accept();
 
-        s.close();
-//        ConsoleLogger.log(Level.SEVERE, "Sent message " + msg + " to " + s.getInetAddress().getHostAddress() + ":" + s.getPort() +  "... ");
+                node.getThreadPool().submit(() -> {
+                    try {
+                        ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+                        ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+                        Object o = in.readObject();
+                        MessageHandler.handle(o, node);
+
+                    } catch (IOException | ClassNotFoundException | InterruptedException | ExecutionException | NoSuchAlgorithmException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        s.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+        });
     }
 
-    public Object receive() throws IOException, ClassNotFoundException {
+    public Future<NodeInfo> listenOnSocket(SSLServerSocket tempSocket) {
+        return node.getThreadPool().submit(() -> {
+            SSLSocket s;
+            NodeInfo nodeInfo = new NullNodeInfo();
+            try {
+                s = (SSLSocket) tempSocket.accept();
 
+                try{
+                    ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+                    Object o = in.readObject();
+                    NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
 
-        SSLSocket clientSocket = (SSLSocket) serverSocket.accept();
-//        ConsoleLogger.log(Level.SEVERE, "Received a message from " + clientSocket.getLocalPort());
+                    if(!(msg.getNode() instanceof NullSimpleNodeInfo)){
+                        nodeInfo = new NodeInfo(msg.getNode());
+                    }
 
-        ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
-        Object o = in.readObject();
+                    msg.handle(node);
+                }catch(IOException | ClassNotFoundException e){
+                    e.printStackTrace();
+                }
 
-        clientSocket.close();
+                s.close();
 
-        return o;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            return nodeInfo;
+        });
     }
 
-    public void setServerSocket(SSLServerSocket serverSocket) {
-        this.serverSocket = serverSocket;
-    }
+    public void send(SSLSocket targetSocket, ChordMessage msg) {
+        try {
+            ObjectOutputStream out = new ObjectOutputStream(targetSocket.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(targetSocket.getInputStream());
 
-    public int getPort() {
-        return this.serverSocket.getLocalPort();
+            out.writeObject(msg);
+            targetSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 }
