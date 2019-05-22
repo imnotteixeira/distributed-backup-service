@@ -19,6 +19,7 @@ public class NodeInfo {
     public final BigInteger id;
     public final InetAddress address;
     public final int port;
+    public String accessPoint;
 
     public NodeInfo(InetAddress address, int port) throws NoSuchAlgorithmException {
         this.address = address;
@@ -44,6 +45,14 @@ public class NodeInfo {
         rawId[7] = (byte) port;
 
         return ByteToHash.convert(rawId, "SHA-256");
+    }
+
+    public void setAccessPoint(String accessPoint) {
+        this.accessPoint = accessPoint;
+    }
+
+    public String getAccessPoint() {
+        return accessPoint;
     }
 
 }

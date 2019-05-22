@@ -38,22 +38,24 @@ public class Main {
 
 
         try {
+            String accessPoint = args[0];
 
-            int port = Integer.valueOf(args[0]);
+            int port = Integer.valueOf(args[1]);
             InetAddress ip = Network.getSelfAddress(port);
 
             NodeInfo selfInfo = new NodeInfo(ip, port);
+            selfInfo.setAccessPoint(accessPoint);
 
             ConsoleLogger.bootstrap(new SimpleNodeInfo(selfInfo));
             ConsoleLogger.log(Level.INFO, "Started Node.");
 
 
             Node n;
-            if(args.length < 3) {
+            if(args.length < 4) {
                 n = new Node(selfInfo);
             } else {
-                InetAddress SUCCESSOR_IP = InetAddress.getByName(args[1]);
-                int SUCCESSOR_PORT = Integer.valueOf(args[2]);
+                InetAddress SUCCESSOR_IP = InetAddress.getByName(args[2]);
+                int SUCCESSOR_PORT = Integer.valueOf(args[3]);
 
 
                 NodeInfo successorInfo = new NodeInfo(SUCCESSOR_IP, SUCCESSOR_PORT);

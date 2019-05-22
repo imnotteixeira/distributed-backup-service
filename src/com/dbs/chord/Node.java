@@ -1,5 +1,6 @@
 package com.dbs.chord;
 
+import com.dbs.backup.BackupManager;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
@@ -33,6 +34,7 @@ public class Node implements Chord{
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
 
+    private BackupManager backupManager;
 
 
     private ScheduledExecutorService threadPool;
@@ -77,6 +79,10 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.SEVERE, "My ID: " + nodeInfo.id);
 
 
+
+        final String nodeAP = this.nodeInfo.getAccessPoint();
+
+        this.backupManager = new BackupManager(nodeAP);
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
