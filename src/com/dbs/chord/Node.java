@@ -25,9 +25,9 @@ import static com.dbs.chord.Utils.*;
 public class Node implements Chord{
 
 
-    private static final int THREAD_POOL_SIZE = 10;
-    private static final int REQUEST_TIMEOUT_MS = 15000;
-    private static final int STABILIZATION_INTERVAL_MS = 10000;
+    private static final int THREAD_POOL_SIZE = 150;
+    private static final int REQUEST_TIMEOUT_MS = 5000;
+    private static final int STABILIZATION_INTERVAL_MS = 200;
 
 
     private ScheduledExecutorService threadPool;
@@ -66,9 +66,8 @@ public class Node implements Chord{
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
 
-        ConsoleLogger.log(Level.INFO, "Generated ID: " + nodeInfo.id);
+        ConsoleLogger.log(Level.SEVERE, "My ID: " + nodeInfo.id);
 
-        ConsoleLogger.log(Level.INFO, "Generated ID (mod 2^256): " + nodeInfo.id.mod(BigInteger.valueOf(2).pow(Chord.NUM_BITS_KEYS)));
 
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
@@ -94,25 +93,31 @@ public class Node implements Chord{
     @Override
     public NodeInfo findSuccessor(BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
+        ConsoleLogger.log(Level.INFO, "Someone is looking for node responsible for " + key);
+
         //if this is the starter node, it is responsible for any key for now
-        if(this.successor.equals(this.nodeInfo)) {
+        if(this.successor.id.equals(this.nodeInfo.id)) {
             return this.nodeInfo;
         }
 
         //if this node currently has no predecessor and the key equals this node's id, this is the responsible node
         if(this.predecessor == null && key.equals(this.nodeInfo.id)) {
+
             return this.nodeInfo;
         }
 
         //if there is a predecessor and the key is between predecessor and current node, current node is responsible
         if(this.predecessor != null && between(key, predecessor.id, this.nodeInfo.id)) {
+
             return this.nodeInfo;
         }
 
         //if key > node && key <= successor
         if(between(key, this.nodeInfo.id, this.successor.id) || key.equals(this.successor.id)) {
+
             return this.successor;
         } else {
+
             NodeInfo nextNode = closestPrecedingNode(key);
             return this.requestSuccessor(nextNode, key);
         }
@@ -150,11 +155,12 @@ public class Node implements Chord{
 
         SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(targetNode.address, targetNode.port);
 
-        this.communicator.send(targetSocket, msg);
 
         ConsoleLogger.log(Level.INFO,"Listening for messages on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
 
         Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
+        this.communicator.send(targetSocket, msg);
+
 
         this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
 
@@ -196,18 +202,14 @@ public class Node implements Chord{
     @Override
     public void join(NodeInfo existingNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-
         this.setPredecessor(null);
 
-
         NodeInfo succ = this.requestSuccessor(existingNode, this.nodeInfo.id);
-        ConsoleLogger.log(Level.SEVERE, "I WAS ASSIGNED THE SUCCESSOR: " + succ.id);
+        ConsoleLogger.log(Level.INFO, "I was assigned the successor: " + succ.id);
 
         this.setSuccessor(succ);
-//        ConsoleLogger.log(Level.INFO, "Found a Successor :: " + this.successor.id);
 
         this.bootstrapStabilizer();
-
 
     }
 
@@ -241,14 +243,31 @@ public class Node implements Chord{
      * Called periodically. verifies this node's immediate successor, and tells the successor about itself.
      */
     @Override
-    public void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException {
+    public synchronized void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException {
         ConsoleLogger.log(Level.INFO, "Stabilizing Network...");
 
 
 
         try {
-            ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
-            NodeInfo x = requestPredecessor(this.successor);
+
+            NodeInfo x;
+            if (this.successor.id.equals(this.nodeInfo.id)) {
+
+                ConsoleLogger.log(Level.SEVERE, "here");
+
+                if(this.predecessor == null) {
+                    x = new NullNodeInfo();
+                } else {
+                    x = this.predecessor;
+                }
+                ConsoleLogger.log(Level.SEVERE, "there");
+            } else {
+                ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
+                x = requestPredecessor(this.successor);
+            }
+
+
+            ConsoleLogger.log(Level.SEVERE, x.id.toString());
 
             //if this request fails, it means my successor prolly is offline, must update stuffs
             //TOODODODODODO
@@ -266,7 +285,7 @@ public class Node implements Chord{
             }
             this.notify(this.successor);
 
-        } catch (ExecutionException e) {
+        } catch (Exception e) {
             ConsoleLogger.log(Level.SEVERE, "EXECUTION EXCEPTION: " + e.getCause() + "\n");
             e.printStackTrace();
         }
@@ -280,15 +299,14 @@ public class Node implements Chord{
 
         FetchPredecessorMessage msg = new FetchPredecessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
 
-        this.communicator.send(Utils.createClientSocket(node.address, node.port), msg);
+
 
 
         Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
 
+        this.communicator.send(Utils.createClientSocket(node.address, node.port), msg);
+
         ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.address + ":" + node.port);
-
-        ConsoleLogger.log(Level.INFO,"Waiting for predecessor of " + node.id + " on port " + tempSocket.getLocalPort() +  " for " + REQUEST_TIMEOUT_MS + "ms...");
-
 
         this.ongoingOperations.put(new PredecessorRequestOperationEntry(new SimpleNodeInfo(node)), request);
 
@@ -296,8 +314,6 @@ public class Node implements Chord{
     }
 
     public void handlePredecessorRequest(SimpleNodeInfo originNode) throws IOException, NoSuchAlgorithmException {
-        ConsoleLogger.log(Level.WARNING, "Received a Request for my predecessor.");
-
         PredecessorMessage msg;
 
         if(this.predecessor == null) {
