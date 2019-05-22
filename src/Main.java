@@ -1,11 +1,15 @@
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
+import com.dbs.filemanager.FileManager;
 import com.dbs.utils.ConsoleLogger;
 import com.dbs.utils.Network;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -42,6 +46,25 @@ public class Main {
         } catch (ExecutionException | InterruptedException | NoSuchAlgorithmException | IOException e) {
             e.printStackTrace();
         }
+
+//        try {
+//
+//            Path folder = FileManager.createDirectory("test");
+//
+//            byte[] data = FileManager.readFromFile("asd.asd");
+//
+//            FileManager.writeToFile(Paths.get(folder.toString(), "filecopy").toString(), data);
+//
+//            System.out.println(new String(data, 0, data.length));
+//        } catch (ExecutionException e) {
+//            e.printStackTrace();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
 
 
     }

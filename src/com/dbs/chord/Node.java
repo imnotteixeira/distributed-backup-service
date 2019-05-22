@@ -24,12 +24,14 @@ import static com.dbs.chord.Utils.*;
 
 public class Node implements Chord{
 
+    public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
 
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
+
 
 
     private ScheduledExecutorService threadPool;
