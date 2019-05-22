@@ -117,4 +117,10 @@ public class FileManager {
 
         return ids;
     }
+
+    public static String getFileName(String filePath) {
+        File file = new File(filePath);
+
+        return file.getName();
+    }
 }

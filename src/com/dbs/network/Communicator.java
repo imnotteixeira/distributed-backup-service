@@ -2,6 +2,7 @@ package com.dbs.network;
 
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
+import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.network.messages.ChordMessage;
 import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.NodeInfoMessage;
@@ -13,6 +14,7 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -77,6 +79,35 @@ public class Communicator {
             msg.handle(node);
 
             s.close();
+
+            return nodeInfo;
+        });
+    }
+
+    public CompletableFuture<NodeInfo> async_listenOnSocket(SSLServerSocket tempSocket) {
+        return CompletableFuture.supplyAsync(()->{
+            SSLSocket s;
+            NodeInfo nodeInfo = null;
+            try {
+                nodeInfo = new NullNodeInfo();
+
+            s = (SSLSocket) tempSocket.accept();
+
+            ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+            Object o = in.readObject();
+            NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
+
+            if(!(msg.getNode() instanceof NullSimpleNodeInfo)){
+                nodeInfo = new NodeInfo(msg.getNode());
+            }
+
+            msg.handle(node);
+
+            s.close();
+            } catch (NoSuchAlgorithmException | ClassNotFoundException | IOException | InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
 
             return nodeInfo;
         });

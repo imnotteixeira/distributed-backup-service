@@ -28,6 +28,10 @@ public abstract class ChordMessage implements Serializable {
                     return (StatusCheckMessage) obj;
                 case STATUS_CHECK_CONFIRM:
                     return (StatusCheckConfirmMessage) obj;
+                case BACKUP_REQUEST:
+                    return (BackupRequestMessage) obj;
+                case BACKUP_CONFIRM:
+                    return (BackupConfirmMessage) obj;
                 default:
                     return msg;
             }
@@ -41,7 +45,9 @@ public abstract class ChordMessage implements Serializable {
         PREDECESSOR,
         NOTIFY_SUCCESSOR,
         STATUS_CHECK,
-        STATUS_CHECK_CONFIRM
+        STATUS_CHECK_CONFIRM,
+        BACKUP_REQUEST,
+        BACKUP_CONFIRM
     }
 
     private MESSAGE_TYPE type;

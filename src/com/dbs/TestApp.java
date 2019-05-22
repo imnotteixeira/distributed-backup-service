@@ -17,7 +17,7 @@ public class TestApp {
             BackupService peer = TestApp.lookup(args[0]);
             switch (args[1]) {
                 case "BACKUP":
-                    System.out.println(peer.backup("file", 0));
+                    System.out.println(peer.backup("file"));
                     break;
                 case "RESTORE":
                     System.out.println(peer.restore("file"));

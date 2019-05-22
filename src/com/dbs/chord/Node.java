@@ -82,7 +82,7 @@ public class Node implements Chord{
 
         final String nodeAP = this.nodeInfo.getAccessPoint();
 
-        this.backupManager = new BackupManager(nodeAP);
+        this.backupManager = new BackupManager(this);
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
@@ -477,5 +477,32 @@ public class Node implements Chord{
 
     public ScheduledExecutorService getThreadPool() {
         return threadPool;
+    }
+
+    public NodeInfo getNodeInfo() {
+        return this.nodeInfo;
+    }
+
+    public CompletableFuture<NodeInfo> requestBackup(BigInteger fileId, String fileName, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileName, fileContent);
+
+        NodeInfo targetNode = this.findSuccessor(fileId);
+
+        CompletableFuture<NodeInfo> request = this.communicator.async_listenOnSocket(tempSocket);
+
+        this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
+
+        ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
+
+        return request;
+    }
+
+    public void handleBackupRequest(SimpleNodeInfo originNode, String fileName, byte[] data) throws IOException, NoSuchAlgorithmException {
+        ConsoleLogger.log(Level.SEVERE, "(NOT REALLY PLS IMPLEMENT FILEMANAGER HERE) I am Saving file "+ fileName + "!!");
+        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
+        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
     }
 }
