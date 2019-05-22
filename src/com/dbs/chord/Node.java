@@ -432,7 +432,7 @@ public class Node implements Chord{
         this.threadPool.scheduleWithFixedDelay(() -> {
             try {
                 stabilize();
-            } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
+            } catch (IOException | InterruptedException | NoSuchAlgorithmException e) {
                 e.printStackTrace();
             }
         }, 0, STABILIZATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
