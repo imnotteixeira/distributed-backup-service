@@ -28,6 +28,7 @@ public class Node implements Chord{
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
     private static final int STABILIZATION_INTERVAL_MS = 200;
+    private static final int FIX_FINGER_INTERVAL_MS = 200;
 
 
     private ScheduledExecutorService threadPool;
@@ -39,6 +40,9 @@ public class Node implements Chord{
     private NodeInfo nodeInfo;
     private NodeInfo predecessor;
     private NodeInfo successor;
+
+    private int nextFinger = 0;
+
 
     public Node(NodeInfo nodeInfo) throws IOException {
 
@@ -197,6 +201,7 @@ public class Node implements Chord{
         this.setSuccessor(this.nodeInfo);
 
         this.bootstrapStabilizer();
+        this.bootstrapFixFingers();
     }
 
     @Override
@@ -210,6 +215,7 @@ public class Node implements Chord{
         this.setSuccessor(succ);
 
         this.bootstrapStabilizer();
+        this.bootstrapFixFingers();
 
     }
 
@@ -253,21 +259,15 @@ public class Node implements Chord{
             NodeInfo x;
             if (this.successor.id.equals(this.nodeInfo.id)) {
 
-                ConsoleLogger.log(Level.SEVERE, "here");
-
                 if(this.predecessor == null) {
                     x = new NullNodeInfo();
                 } else {
                     x = this.predecessor;
                 }
-                ConsoleLogger.log(Level.SEVERE, "there");
             } else {
                 ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
                 x = requestPredecessor(this.successor);
             }
-
-
-            ConsoleLogger.log(Level.SEVERE, x.id.toString());
 
             //if this request fails, it means my successor prolly is offline, must update stuffs
             //TOODODODODODO
@@ -290,6 +290,22 @@ public class Node implements Chord{
             e.printStackTrace();
         }
 
+    }
+
+    private void fix_fingers() throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException {
+        this.nextFinger += 1;
+        if(this.nextFinger > Chord.NUM_BITS_KEYS){
+            this.nextFinger = 1;
+        }
+        fingerTable.put(this.nextFinger,
+                this.findSuccessor(
+                        this.nodeInfo.id
+                                .add(BigInteger.valueOf(2)
+                                        .pow(this.nextFinger - 1))
+                                .mod(BigInteger.valueOf(2)
+                                        .pow(Chord.NUM_BITS_KEYS))
+                )
+        );
     }
 
     private NodeInfo requestPredecessor(NodeInfo node) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
@@ -383,8 +399,29 @@ public class Node implements Chord{
             } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
                 e.printStackTrace();
             }
-        }, 2000, STABILIZATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        }, 0, STABILIZATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
+
+    private void bootstrapFixFingers() {
+        this.threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                fix_fingers();
+                if(this.nextFinger == 1) {
+                    ConsoleLogger.log(Level.SEVERE, "PRINTING FINGER TABLE");
+                    this.fingerTable.forEach((key, val) -> ConsoleLogger.log(Level.SEVERE, "key: " + key + " val: " + val.id + " was looking for: " + this.nodeInfo.id
+                            .add(BigInteger.valueOf(2)
+                                    .pow(key - 1))
+                            .mod(BigInteger.valueOf(2)
+                                    .pow(Chord.NUM_BITS_KEYS)).toString()));
+                }
+            } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }, 0, FIX_FINGER_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+
+
 
     public ScheduledExecutorService getThreadPool() {
         return threadPool;
