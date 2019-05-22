@@ -1,5 +1,6 @@
 package com.dbs.filemanager;
 
+import com.dbs.chord.Chord;
 import com.dbs.utils.ByteToHash;
 
 import java.io.File;
@@ -96,7 +97,7 @@ public class FileManager {
         }
     }
 
-    public static BigInteger[] generateFileIds(String filePath) throws IOException, NoSuchAlgorithmException {
+    public static BigInteger[] generateFileIds(String filePath, int numIds) throws IOException, NoSuchAlgorithmException {
         File file = new File(filePath);
 
         String name = file.getName();
@@ -105,19 +106,14 @@ public class FileManager {
 
         String creationTime = attr.creationTime().toString();
 
-        ByteBuffer rawId = ByteBuffer.allocate(name.getBytes().length + creationTime.getBytes().length + Integer.BYTES)
-                .put(name.getBytes())
-                .put(creationTime.getBytes());
+        BigInteger[] ids = new BigInteger[numIds];
 
-        byte[] rawId0 = rawId.duplicate().putInt(0).array();
-        byte[] rawId1 = rawId.duplicate().putInt(1).array();
-        byte[] rawId2 = rawId.duplicate().putInt(2).array();
-
-        BigInteger[] ids = new BigInteger[3];
-
-        ids[0] = ByteToHash.convert(rawId0, "SHA-256");
-        ids[1] = ByteToHash.convert(rawId0, "SHA-256");
-        ids[2] = ByteToHash.convert(rawId0, "SHA-256");
+        for (int i = 0; i < numIds; i++) {
+            ids[i] =  ByteToHash.convert(new StringBuffer()
+                    .append(name)
+                    .append(creationTime)
+                    .append(i).toString().getBytes(), "SHA-256").mod(BigInteger.valueOf(2).pow(Chord.NUM_BITS_KEYS));
+        }
 
         return ids;
     }

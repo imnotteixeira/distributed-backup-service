@@ -1,3 +1,4 @@
+import com.dbs.chord.Chord;
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
@@ -7,6 +8,7 @@ import com.dbs.utils.Network;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,6 +21,22 @@ public class Main {
     public static void main(String[] args) {
         // Necessary for MacOS operating system to prioritize IPv4 interfaces
         System.setProperty("java.net.preferIPv4Stack", "true");
+
+
+        try {
+            BigInteger[] ids = FileManager.generateFileIds("asd.asd", Node.REPLICATION_DEGREE);
+
+            for (BigInteger id: ids) {
+                System.out.println(id);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+
         try {
 
             int port = Integer.valueOf(args[0]);

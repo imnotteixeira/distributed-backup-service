@@ -25,6 +25,7 @@ import static com.dbs.chord.Utils.*;
 public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
+    public static final int REPLICATION_DEGREE = 3;
 
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
