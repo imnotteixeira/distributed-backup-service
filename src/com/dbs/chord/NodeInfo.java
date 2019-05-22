@@ -19,6 +19,7 @@ public class NodeInfo {
     public final BigInteger id;
     public final InetAddress address;
     public final int port;
+    public String accessPoint;
     public SSLServerSocket serverSocket;
     public SSLSocket clientSocket;
     public Communicator communicator;
@@ -53,6 +54,14 @@ public class NodeInfo {
     public void setServerSocket(SSLServerSocket s) {
         this.serverSocket = s;
         createOrUpdateCommunicator(s);
+    }
+
+    public void setAccessPoint(String accessPoint) {
+        this.accessPoint = accessPoint;
+    }
+
+    public String getAccessPoint() {
+        return accessPoint;
     }
 
     public Socket getClientSocket() throws IOException {

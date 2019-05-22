@@ -65,7 +65,9 @@ public class Node implements Chord{
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
 
-        this.backupManager = new BackupManager();
+        final String nodeAP = this.nodeInfo.getAccessPoint();
+
+        this.backupManager = new BackupManager(nodeAP);
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
