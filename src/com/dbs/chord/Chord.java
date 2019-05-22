@@ -17,4 +17,10 @@ public interface Chord {
     void handlePredecessorNotification(SimpleNodeInfo predecessor) throws IOException, NoSuchAlgorithmException;
 
     void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException;
+
+    void handleSuccessorFail() throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException;
+
+    void fixFingers() throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException;
+
+    void checkPredecessor() throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException;
 }

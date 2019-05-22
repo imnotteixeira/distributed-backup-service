@@ -11,6 +11,7 @@ import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -42,6 +43,8 @@ public class Communicator {
                         Object o = in.readObject();
                         MessageHandler.handle(o, node);
 
+                    } catch (SocketException e) {
+                        ConsoleLogger.log(Level.WARNING, "Socket was closed unexpectedly");
                     } catch (IOException | ClassNotFoundException | InterruptedException | ExecutionException | NoSuchAlgorithmException e) {
                         e.printStackTrace();
                     }
@@ -56,48 +59,35 @@ public class Communicator {
         });
     }
 
-    public Future<NodeInfo> listenOnSocket(SSLServerSocket tempSocket) {
+    public Future<NodeInfo> listenOnSocket(SSLServerSocket tempSocket){
         return node.getThreadPool().submit(() -> {
             SSLSocket s;
             NodeInfo nodeInfo = new NullNodeInfo();
-            try {
-                s = (SSLSocket) tempSocket.accept();
+            s = (SSLSocket) tempSocket.accept();
 
-                try{
-                    ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-                    ObjectInputStream in = new ObjectInputStream(s.getInputStream());
-                    Object o = in.readObject();
-                    NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
+            ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+            Object o = in.readObject();
+            NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
 
-                    if(!(msg.getNode() instanceof NullSimpleNodeInfo)){
-                        nodeInfo = new NodeInfo(msg.getNode());
-                    }
-
-                    msg.handle(node);
-                }catch(IOException | ClassNotFoundException e){
-                    e.printStackTrace();
-                }
-
-                s.close();
-
-            } catch (IOException e) {
-                e.printStackTrace();
+            if(!(msg.getNode() instanceof NullSimpleNodeInfo)){
+                nodeInfo = new NodeInfo(msg.getNode());
             }
+
+            msg.handle(node);
+
+            s.close();
 
             return nodeInfo;
         });
     }
 
-    public void send(SSLSocket targetSocket, ChordMessage msg) {
-        try {
-            ObjectOutputStream out = new ObjectOutputStream(targetSocket.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(targetSocket.getInputStream());
+    public void send(SSLSocket targetSocket, ChordMessage msg) throws IOException{
+        ObjectOutputStream out = new ObjectOutputStream(targetSocket.getOutputStream());
+        ObjectInputStream in = new ObjectInputStream(targetSocket.getInputStream());
 
-            out.writeObject(msg);
-            targetSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        out.writeObject(msg);
+        targetSocket.close();
 
     }
 }

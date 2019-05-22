@@ -24,6 +24,10 @@ public abstract class ChordMessage implements Serializable {
                     return (SuccessorMessage) obj;
                 case PREDECESSOR:
                     return (PredecessorMessage) obj;
+                case STATUS_CHECK:
+                    return (StatusCheckMessage) obj;
+                case STATUS_CHECK_CONFIRM:
+                    return (StatusCheckConfirmMessage) obj;
                 default:
                     return msg;
             }
@@ -35,7 +39,9 @@ public abstract class ChordMessage implements Serializable {
         FIND_SUCCESSOR,
         SUCCESSOR,
         PREDECESSOR,
-        NOTIFY_SUCCESSOR
+        NOTIFY_SUCCESSOR,
+        STATUS_CHECK,
+        STATUS_CHECK_CONFIRM
     }
 
     private MESSAGE_TYPE type;

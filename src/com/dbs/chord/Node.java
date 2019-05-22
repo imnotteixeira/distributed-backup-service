@@ -8,13 +8,13 @@ import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 
-import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.*;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.ConnectException;
 import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
@@ -29,6 +29,7 @@ public class Node implements Chord{
     private static final int REQUEST_TIMEOUT_MS = 5000;
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
+    private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
 
 
     private ScheduledExecutorService threadPool;
@@ -202,6 +203,7 @@ public class Node implements Chord{
 
         this.bootstrapStabilizer();
         this.bootstrapFixFingers();
+        this.bootstrapCheckPredecessor();
     }
 
     @Override
@@ -216,6 +218,7 @@ public class Node implements Chord{
 
         this.bootstrapStabilizer();
         this.bootstrapFixFingers();
+        this.bootstrapCheckPredecessor();
 
     }
 
@@ -249,50 +252,80 @@ public class Node implements Chord{
      * Called periodically. verifies this node's immediate successor, and tells the successor about itself.
      */
     @Override
-    public synchronized void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException, ExecutionException {
+    public void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException {
         ConsoleLogger.log(Level.INFO, "Stabilizing Network...");
 
+        NodeInfo x;
+        if (this.successor.id.equals(this.nodeInfo.id)) {
 
+            if(this.predecessor == null) return;
+
+            x = this.predecessor;
+
+        } else {
+            ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
+            try {
+                x = requestPredecessor(this.successor);
+            }catch(ExecutionException | SocketException e){
+                //if this request fails, it means my successor prolly is offline, must update stuffs
+                this.handleSuccessorFail();
+                return;
+            }
+        }
+
+        //edge case of first stabilization
+
+        if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
+            this.setSuccessor(x);
+        } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
+            this.setSuccessor(this.predecessor);
+        }
 
         try {
-
-            NodeInfo x;
-            if (this.successor.id.equals(this.nodeInfo.id)) {
-
-                if(this.predecessor == null) {
-                    x = new NullNodeInfo();
-                } else {
-                    x = this.predecessor;
-                }
-            } else {
-                ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
-                x = requestPredecessor(this.successor);
-            }
-
-            //if this request fails, it means my successor prolly is offline, must update stuffs
-            //TOODODODODODO
-
-
-            //edge case of first stabilization
-            if(x instanceof NullNodeInfo) {
-                this.setSuccessor(x);
-            } else {
-                if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
-                    this.setSuccessor(x);
-                } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
-                    this.setSuccessor(this.predecessor);
-                }
-            }
             this.notify(this.successor);
-
-        } catch (Exception e) {
-            ConsoleLogger.log(Level.SEVERE, "EXECUTION EXCEPTION: " + e.getCause() + "\n");
-            e.printStackTrace();
+        } catch (Exception e){
+            //Successor was removed before sending notification
         }
 
     }
 
-    private void fix_fingers() throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException {
+    @Override
+    public void handleSuccessorFail(){
+        ConsoleLogger.log(Level.SEVERE, "Successor offline - Fault tolerance not implemented");
+    }
+
+
+    @Override
+    public synchronized void checkPredecessor() throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+
+        if(this.predecessor == null || this.predecessor.id.equals(this.nodeInfo.id)) return;
+
+        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+        StatusCheckMessage msg = new StatusCheckMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
+
+        try {
+
+            Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
+
+            this.communicator.send(Utils.createClientSocket(this.predecessor.address, this.predecessor.port), msg);
+
+            ConsoleLogger.log(Level.INFO, "Sent predecessor status check for node: " + this.predecessor.id);
+
+            request.get();
+
+        } catch(Exception e) {
+            ConsoleLogger.log(Level.SEVERE, "Predecessor went offline!");
+            if(this.predecessor.id.equals(this.successor.id)){
+                this.setSuccessor(new NullNodeInfo());
+            }
+            this.setPredecessor(null);
+        }
+    }
+
+    @Override
+    public void fixFingers() throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException {
         this.nextFinger += 1;
         if(this.nextFinger > Chord.NUM_BITS_KEYS){
             this.nextFinger = 1;
@@ -314,9 +347,6 @@ public class Node implements Chord{
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         FetchPredecessorMessage msg = new FetchPredecessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
-
-
-
 
         Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
 
@@ -343,6 +373,12 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.WARNING, "Sending Predecessor info for node on port " + targetSocket.getPort());
         this.communicator.send(targetSocket, msg);
 
+    }
+
+
+    public void handleStatusCheck(SimpleNodeInfo originNode) throws IOException, NoSuchAlgorithmException {
+        StatusCheckConfirmMessage msg = new StatusCheckConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
+        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
     }
 
     private void startListening() throws IOException {
@@ -405,7 +441,7 @@ public class Node implements Chord{
     private void bootstrapFixFingers() {
         this.threadPool.scheduleWithFixedDelay(() -> {
             try {
-                fix_fingers();
+                fixFingers();
                 if(this.nextFinger == 1) {
                     ConsoleLogger.log(Level.SEVERE, "PRINTING FINGER TABLE");
                     this.fingerTable.forEach((key, val) -> ConsoleLogger.log(Level.SEVERE, "key: " + key + " val: " + val.id + " was looking for: " + this.nodeInfo.id
@@ -420,8 +456,15 @@ public class Node implements Chord{
         }, 0, FIX_FINGER_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
-
-
+    private void bootstrapCheckPredecessor() {
+        this.threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                checkPredecessor();
+            } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }, 0, CHECK_PREDECESSOR_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
 
     public ScheduledExecutorService getThreadPool() {
         return threadPool;
