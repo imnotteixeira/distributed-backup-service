@@ -1,5 +1,6 @@
 package com.dbs.chord;
 
+import com.dbs.backup.BackupManager;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
 import com.dbs.network.Listener;
@@ -25,6 +26,7 @@ public class Node implements Chord{
     private static final int THREAD_POOL_SIZE = 10;
     private static final int REQUEST_TIMEOUT_MS = 3000;
 
+    private BackupManager backupManager;
 
     private ScheduledExecutorService threadPool;
     private Listener listener;
@@ -62,6 +64,8 @@ public class Node implements Chord{
 
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
+
+        this.backupManager = new BackupManager();
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
