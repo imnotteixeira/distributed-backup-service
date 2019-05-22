@@ -13,7 +13,7 @@ import static java.nio.file.StandardOpenOption.*;
 
 public class FileManager {
 
-    public static int readFromFile(String filePath, ByteBuffer data, long filePosition) {
+    public static Future<Integer> readFromFile(String filePath, ByteBuffer data, long filePosition) {
 
         Path path = Paths.get(filePath);
         AsynchronousFileChannel fileChannel;
@@ -23,19 +23,10 @@ public class FileManager {
             fileChannel = AsynchronousFileChannel.open(path, READ);
         } catch (IOException e) {
             e.printStackTrace();
-            return -1;
+            return null;
         }
 
-        Future<Integer> result = fileChannel.read(data, filePosition);
-
-        try {
-            nBytes = result.get();
-            return nBytes;
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-            return -1;
-        }
-
+        return fileChannel.read(data, filePosition);
     }
 
     public static int deleteFile(String filePath) {
@@ -43,7 +34,7 @@ public class FileManager {
         Path path = Paths.get(filePath);
 
         try {
-            AsynchronousFileChannel.open(path, DELETE_ON_CLOSE);
+            Files.delete(path);
             return 0;
         } catch (IOException e) {
             e.printStackTrace();
@@ -51,7 +42,7 @@ public class FileManager {
         }
     }
 
-    public static int writeToFile(String filePath, ByteBuffer data, long filePosition) {
+    public static Future<Integer> writeToFile(String filePath, ByteBuffer data, long filePosition) {
 
         Path path = Paths.get(filePath);
         AsynchronousFileChannel fileChannel;
@@ -61,18 +52,10 @@ public class FileManager {
             fileChannel = AsynchronousFileChannel.open(path, WRITE, CREATE);
         } catch (IOException e) {
             e.printStackTrace();
-            return -1;
+            return null;
         }
 
-        Future<Integer> result =  fileChannel.write(data, filePosition);
-
-        try {
-            nBytes = result.get();
-            return nBytes;
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-            return -1;
-        }
+        return fileChannel.write(data, filePosition);
     }
 
     /**
