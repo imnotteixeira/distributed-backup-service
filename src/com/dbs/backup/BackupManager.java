@@ -71,8 +71,28 @@ public class BackupManager implements BackupService {
         // Wait until they are all done
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
 
+        StringBuilder retMsg = new StringBuilder();
 
-        return "File Backed Up in "+ futures.size() + " nodes!";
+        for (CompletableFuture<NodeInfo> future : futures) {
+
+            if(future.isDone()) {
+                BigInteger id = null;
+                try {
+                    id = future.get().id;
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
+                if(future.isCompletedExceptionally()) {
+                    retMsg.append("Tried to save replica in node " + id + " but could not.\n");
+                } else {
+                    retMsg.append("Successfully saved replica in node " + id + ".\n");
+                }
+            }
+
+        }
+
+
+        return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
     }
 
     private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(BigInteger[] fileIds, String fileName, byte[] fileContent) {

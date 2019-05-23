@@ -1,5 +1,3 @@
-package com.dbs;
-
 import com.dbs.backup.BackupService;
 
 import java.rmi.NotBoundException;
@@ -17,7 +15,7 @@ public class TestApp {
             BackupService peer = TestApp.lookup(args[0]);
             switch (args[1]) {
                 case "BACKUP":
-                    System.out.println(peer.backup("file"));
+                    System.out.println(peer.backup("asd.asd"));
                     break;
                 case "RESTORE":
                     System.out.println(peer.restore("file"));

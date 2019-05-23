@@ -4,6 +4,7 @@ import com.dbs.backup.BackupManager;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
+import com.dbs.filemanager.FileManager;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
@@ -16,6 +17,8 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
@@ -33,6 +36,7 @@ public class Node implements Chord{
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
+    private static String NODE_PATH;
 
     private BackupManager backupManager;
 
@@ -81,6 +85,8 @@ public class Node implements Chord{
 
 
         final String nodeAP = this.nodeInfo.getAccessPoint();
+
+        Node.NODE_PATH = nodeAP;
 
         this.backupManager = new BackupManager(this);
 
@@ -282,15 +288,21 @@ public class Node implements Chord{
             }
         }
 
-        //edge case of first stabilization
 
-        if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
-            this.setSuccessor(x);
-        } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
-            this.setSuccessor(this.predecessor);
+        if(!(x instanceof NullNodeInfo)) {
+            if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
+                ConsoleLogger.log(Level.SEVERE, "Here");
+                this.setSuccessor(x);
+            } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
+                ConsoleLogger.log(Level.SEVERE, "There");
+                this.setSuccessor(this.predecessor);
+            }
         }
 
+
+
         try {
+            ConsoleLogger.log(Level.SEVERE, "Notifying successor "+ this.successor);
             this.notify(this.successor);
         } catch (Exception e){
             //Successor was removed before sending notification
@@ -451,14 +463,6 @@ public class Node implements Chord{
         this.threadPool.scheduleWithFixedDelay(() -> {
             try {
                 fixFingers();
-                if(this.nextFinger == 1) {
-                    ConsoleLogger.log(Level.SEVERE, "PRINTING FINGER TABLE");
-                    this.fingerTable.forEach((key, val) -> ConsoleLogger.log(Level.SEVERE, "key: " + key + " val: " + val.id + " was looking for: " + this.nodeInfo.id
-                            .add(BigInteger.valueOf(2)
-                                    .pow(key - 1))
-                            .mod(BigInteger.valueOf(2)
-                                    .pow(Chord.NUM_BITS_KEYS)).toString()));
-                }
             } catch (IOException | InterruptedException | NoSuchAlgorithmException | ExecutionException e) {
                 e.printStackTrace();
             }
@@ -487,7 +491,7 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileName, fileContent);
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileName, fileContent);
 
         NodeInfo targetNode = this.findSuccessor(fileId);
 
@@ -495,13 +499,20 @@ public class Node implements Chord{
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
+        ConsoleLogger.log(Level.SEVERE, "HEY HEY HEY HYE OH TARGET NODE " + targetNode.address + ":" + targetNode.port);
+        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + fileId);
         ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
         return request;
     }
 
-    public void handleBackupRequest(SimpleNodeInfo originNode, String fileName, byte[] data) throws IOException, NoSuchAlgorithmException {
+    public void handleBackupRequest(SimpleNodeInfo originNode, BigInteger fileId, String fileName, byte[] data) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         ConsoleLogger.log(Level.SEVERE, "(NOT REALLY PLS IMPLEMENT FILEMANAGER HERE) I am Saving file "+ fileName + "!!");
+
+        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+
+        FileManager.writeToFile(directory.resolve(fileId.toString()).toString(), data);
+
         BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
         this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
     }

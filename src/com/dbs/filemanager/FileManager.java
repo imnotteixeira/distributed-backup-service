@@ -97,6 +97,26 @@ public class FileManager {
         }
     }
 
+    /**
+     *
+     * @param directoryName directory Name
+     * @return Returns 0 on success and -1 if directory already exists
+     */
+    public static Path createDirectory(String directoryName, String rootFolder) throws IOException {
+
+
+        Path path = Paths.get(rootFolder, directoryName);
+
+        if(Files.notExists(path)) {
+
+            return Files.createDirectories(path);
+
+        }
+
+        return path;
+
+    }
+
     public static BigInteger[] generateFileIds(String filePath, int numIds) throws IOException, NoSuchAlgorithmException {
         File file = new File(filePath);
 

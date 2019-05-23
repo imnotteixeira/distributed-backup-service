@@ -24,20 +24,6 @@ public class Main {
 
 
         try {
-            BigInteger[] ids = FileManager.generateFileIds("asd.asd", Node.REPLICATION_DEGREE);
-
-            for (BigInteger id: ids) {
-                System.out.println(id);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-
-
-        try {
             String accessPoint = args[0];
 
             int port = Integer.valueOf(args[1]);
