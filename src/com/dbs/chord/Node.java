@@ -507,18 +507,22 @@ public class Node implements Chord{
         ChordMessage backupRequestResponse = request.get();
 
         if(backupRequestResponse instanceof BackupACKMessage){
+            System.out.println("Received ACK, sending file!");
             SimpleNodeInfo payloadTarget = ((NodeInfoMessage) backupRequestResponse).getNode();
 
             SSLServerSocket payloadResponseSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
             payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-            BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId, fileContent);
+            BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, payloadResponseSocket.getLocalPort()), replicaId, fileContent);
 
             CompletableFuture<ChordMessage> payloadResponse = this.communicator.async_listenOnSocket(payloadResponseSocket);
 
             this.communicator.send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
 
             ChordMessage payloadResponseMessage = payloadResponse.get();
+
+            System.out.println("The payload response message was " + payloadResponseMessage.getClass());
+
 
             if(!(payloadResponseMessage instanceof BackupConfirmMessage)){
                 ConsoleLogger.log(Level.SEVERE, "Failed to store replica of file!");
@@ -538,14 +542,12 @@ public class Node implements Chord{
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
-            ConsoleLogger.log(Level.SEVERE, "HERE");
             this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port),
                     new BackupNACKMessage(request.getOriginNode(), request.getReplicaId()));
 
             return;
         }
 
-        ConsoleLogger.log(Level.SEVERE, "THERE");
 
         this.backupManager.storeReplica(request);
 
@@ -557,12 +559,12 @@ public class Node implements Chord{
 
         Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
 
-        FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getFileId().toString()).toString(), backupPayloadMessage.getData());
+        FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getHash().toString()).toString(), backupPayloadMessage.getData());
 
         BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), backupPayloadMessage.getReplicaId());
 
 
-
+        System.out.println("answering to "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " - thanks for the file!");
         this.communicator.send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
     }
 
