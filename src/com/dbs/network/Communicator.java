@@ -96,9 +96,7 @@ public class Communicator {
                 ObjectInputStream in = new ObjectInputStream(s.getInputStream());
                 Object o = in.readObject();
                 return ChordMessage.fromObject(o);
-
-            }catch (SocketTimeoutException e) {
-                System.out.println("HELLLLLO");
+                
             } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             }
