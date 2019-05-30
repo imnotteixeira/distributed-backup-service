@@ -1,27 +1,22 @@
 package com.dbs.network.messages;
 
-import com.dbs.backup.FileIdentifier;
+import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
 public class BackupRequestMessage extends ChordMessage{
     private final SimpleNodeInfo originNode;
 //    private final byte[] data;
-    private final FileIdentifier fileId;
-    private final long fileSize;
+    private final ReplicaIdentifier replicaId;
 
-    public BackupRequestMessage(SimpleNodeInfo originNode, FileIdentifier fileId, long fileSize) {
+    public BackupRequestMessage(SimpleNodeInfo originNode, ReplicaIdentifier replicaId) {
         super(MESSAGE_TYPE.BACKUP_REQUEST);
         this.originNode = originNode;
-        this.fileId = fileId;
-        this.fileSize = fileSize;
-//        this.data = data;
-
+        this.replicaId = replicaId;
     }
 
     @Override
@@ -29,12 +24,8 @@ public class BackupRequestMessage extends ChordMessage{
         n.handleBackupRequest(this);
     }
 
-    public FileIdentifier getFileId() {
-        return fileId;
-    }
-
-    public long getFileSize() {
-        return fileSize;
+    public ReplicaIdentifier getReplicaId() {
+        return replicaId;
     }
 
     public SimpleNodeInfo getOriginNode() {

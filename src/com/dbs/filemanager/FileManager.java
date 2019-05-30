@@ -1,6 +1,7 @@
 package com.dbs.filemanager;
 
 import com.dbs.backup.FileIdentifier;
+import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.Chord;
 import com.dbs.utils.ByteToHash;
 
@@ -118,7 +119,7 @@ public class FileManager {
 
     }
 
-    public static FileIdentifier[] generateFileIds(String filePath, int numIds) throws IOException, NoSuchAlgorithmException {
+    public static ReplicaIdentifier[] generateReplicaIds(String filePath, int numIds) throws IOException, NoSuchAlgorithmException {
         File file = new File(filePath);
 
         String name = file.getName();
@@ -127,12 +128,13 @@ public class FileManager {
 
         String creationTime = attr.creationTime().toString();
 
-        FileIdentifier[] ids = new FileIdentifier[numIds];
+        ReplicaIdentifier[] ids = new ReplicaIdentifier[numIds];
+
+        FileIdentifier fileId = new FileIdentifier(name, creationTime, attr.size());
 
         for (int i = 0; i < numIds; i++) {
-            ids[i] = new FileIdentifier(
-                        filePath,
-                        creationTime,
+            ids[i] = new ReplicaIdentifier(
+                        fileId,
                         ByteToHash.convert(new StringBuffer()
                             .append(name)
                             .append(creationTime)

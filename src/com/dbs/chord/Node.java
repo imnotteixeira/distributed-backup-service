@@ -1,11 +1,10 @@
 package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
-import com.dbs.backup.FileIdentifier;
+import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
-import com.dbs.filemanager.FileManager;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
@@ -15,12 +14,8 @@ import com.dbs.utils.State;
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NavigableSet;
@@ -48,6 +43,7 @@ public class Node implements Chord{
     private Communicator communicator;
 
     private ConcurrentHashMap<OperationEntry, Future<NodeInfo>> ongoingOperations;
+
     private ConcurrentSkipListMap<Integer, NodeInfo> fingerTable;
 
     private NodeInfo nodeInfo;
@@ -494,22 +490,35 @@ public class Node implements Chord{
         return this.nodeInfo;
     }
 
-    public CompletableFuture<NodeInfo> requestBackup(FileIdentifier fileId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileContent.length);
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), replicaId);
 
-        NodeInfo targetNode = this.findSuccessor(fileId.getHash());
+        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
 
         CompletableFuture<NodeInfo> request = this.communicator.async_listenOnSocket(tempSocket);
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + fileId);
+        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId);
         ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
-        return request;
+        NodeInfo payloadTarget = request.get();
+
+        SSLServerSocket payloadResponseSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+        BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId, fileContent);
+
+        CompletableFuture<NodeInfo> payloadResponse = this.communicator.async_listenOnSocket(payloadResponseSocket);
+
+        this.communicator.send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
+
+        //TODO THROW EXCEPTION IF PAYLOAD RESPONSE IS A NACK, HANDLE CONFIRM AND ACK MSGS
+        
+        return payloadResponse;
     }
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
@@ -525,25 +534,24 @@ public class Node implements Chord{
 //
 //        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
 
-        BackupResponseMessage msg;
-
-        if(this.backupManager.canStore(request.getFileSize())) {
-            if(this.backupManager.hasFile(request.getFileId())) {
-                msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
-            }
-             msg = new BackupACKMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
-
-        } else {
-            msg = new BackupNACKMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
+        if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
+            this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port),
+                    new BackupNACKMessage(request.getOriginNode(), request.getReplicaId()));
         }
 
-        this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port), msg);
-
-
+        this.backupManager.storeReplica(request);
 
     }
 
     public State getState() {
         return this.state;
+    }
+
+    public Communicator getCommunicator() {
+        return communicator;
+    }
+
+    public NodeInfo getSuccessor() {
+        return this.successor;
     }
 }

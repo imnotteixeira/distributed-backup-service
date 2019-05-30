@@ -1,19 +1,43 @@
 package com.dbs.backup;
 
-import java.math.BigInteger;
+import java.util.Objects;
 
 public class FileIdentifier {
 
-    String originalPath, creationTime;
-    BigInteger replicaHash;
+    String fileName, creationTime;
 
-    public FileIdentifier(String originalPath, String creationTime, BigInteger replicaHash){
-        this.originalPath = originalPath;
+    long fileSize;
+
+    public FileIdentifier(String fileName, String creationTime, long fileSize) {
+        this.fileName = fileName;
         this.creationTime = creationTime;
-        this.replicaHash = replicaHash;
+        this.fileSize = fileSize;
     }
 
-    public BigInteger getHash() {
-        return replicaHash;
+    public String getFileName() {
+        return fileName;
+    }
+
+    public String getCreationTime() {
+        return creationTime;
+    }
+
+    public long getFileSize() {
+        return fileSize;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FileIdentifier)) return false;
+        FileIdentifier that = (FileIdentifier) o;
+        return fileSize == that.fileSize &&
+                Objects.equals(fileName, that.fileName) &&
+                Objects.equals(creationTime, that.creationTime);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fileName, creationTime, fileSize);
     }
 }

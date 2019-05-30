@@ -3,8 +3,12 @@ package com.dbs.backup;
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
+import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
+import com.dbs.network.messages.BackupACKMessage;
+import com.dbs.network.messages.BackupConfirmMessage;
 import com.dbs.network.messages.BackupRequestMessage;
+import com.dbs.network.messages.BackupResponseMessage;
 import com.dbs.utils.ConsoleLogger;
 
 import java.io.FileNotFoundException;
@@ -15,11 +19,8 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 
 import static java.util.logging.Level.*;
 
@@ -53,10 +54,10 @@ public class BackupManager implements BackupService {
         // Waits for *all* futures to complete and returns a list of results.
         // If *any* future completes exceptionally then the resulting future will also complete exceptionally.
 
-        FileIdentifier[] fileIds;
+        ReplicaIdentifier[] replicaIds;
         byte[] fileContent;
         try {
-            fileIds = FileManager.generateFileIds(file, Node.REPLICATION_DEGREE);
+            replicaIds = FileManager.generateReplicaIds(file, Node.REPLICATION_DEGREE);
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new RemoteException("Could not generate file ids", e);
         }
@@ -67,7 +68,7 @@ public class BackupManager implements BackupService {
             throw new RemoteException("Could not read file contents", e);
         }
 
-        ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(fileIds, fileContent);
+        ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(replicaIds, fileContent);
 
         // Wait until they are all done
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
@@ -96,7 +97,7 @@ public class BackupManager implements BackupService {
         return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
     }
 
-    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(FileIdentifier[] fileIds, byte[] fileContent) {
+    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(ReplicaIdentifier[] fileIds, byte[] fileContent) {
 
         ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(fileIds.length);
 
@@ -114,15 +115,38 @@ public class BackupManager implements BackupService {
 
     }
 
-    public boolean hasFile(FileIdentifier fileId) {
-        return this.node.getState().hasFile(fileId);
+    public boolean hasReplica(ReplicaIdentifier id) {
+        return this.node.getState().hasReplica(id);
+    }
+
+    public boolean hasFile(FileIdentifier id) {
+        return this.node.getState().hasFile(id);
     }
 
     public synchronized boolean canStore(long fileSize) {
         return this.node.getState().hasSpace(fileSize);
     }
-    
-    
+
+    public void storeReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
+
+        try {
+            BackupResponseMessage msg;
+
+            if(this.node.getState().addReplica(request.getReplicaId())){ //se ele ja tinha o ficheiro, que msg manda? ok top
+                msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
+            }else{
+                msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
+            }
+
+            this.node.getCommunicator().send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port), msg);
+        } catch (NoSpaceException e) {
+
+            BackupRequestMessage msg = new BackupRequestMessage(request.getOriginNode(), request.getReplicaId());
+
+            this.node.getCommunicator().send(Utils.createClientSocket(this.node.getSuccessor().address, this.node.getSuccessor().port), msg);
+        }
+    }
+
 
     @Override
     public String restore(String file) throws RemoteException {
