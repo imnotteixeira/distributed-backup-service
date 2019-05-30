@@ -3,6 +3,7 @@ package com.dbs.network;
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
+import com.dbs.network.messages.BackupResponseMessage;
 import com.dbs.network.messages.ChordMessage;
 import com.dbs.network.messages.FindSuccessorMessage;
 import com.dbs.network.messages.NodeInfoMessage;
@@ -98,6 +99,15 @@ public class Communicator {
             } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             }
+
+            return new ChordMessage(ChordMessage.MESSAGE_TYPE.BACKUP_NACK) {
+                @Override
+                public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+
+                }
+            };
+
+
         });
     }
 
