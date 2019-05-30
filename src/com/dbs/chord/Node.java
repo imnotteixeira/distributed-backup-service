@@ -407,7 +407,6 @@ public class Node implements Chord{
     private void startListening() throws IOException {
         //ServerSocket s = new ServerSocket(nodeInfo.port);
         SSLServerSocket serverSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(this.nodeInfo.port);
-        System.out.println(Arrays.toString(serverSocket.getEnabledCipherSuites()));
 
         this.communicator = new Communicator(this, serverSocket);
 
