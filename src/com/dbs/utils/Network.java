@@ -1,9 +1,6 @@
 package com.dbs.utils;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -78,8 +75,12 @@ public class Network {
         if (enabledSuites == null) {
             Network.filterCipherSuites();
         }
-        SSLServerSocket s = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(i);
-        s.setEnabledCipherSuites(enabledSuites);
-        return s;
+        SSLServerSocket socket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(i);
+        socket.setEnabledCipherSuites(enabledSuites);
+        socket.setNeedClientAuth(true);
+        SSLParameters parameters = socket.getSSLParameters();
+        parameters.setUseCipherSuitesOrder(true);
+        socket.setSSLParameters(parameters);
+        return socket;
     }
 }
