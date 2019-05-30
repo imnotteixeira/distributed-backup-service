@@ -19,6 +19,7 @@ public class ConsoleLogger {
         ConsoleHandler handler = new ConsoleHandler();
         handler.setFormatter(formatter);
         logger.addHandler(handler);
+        logger.setLevel(Level.SEVERE);
 
     }
 

@@ -3,10 +3,12 @@ package com.dbs.network.messages;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
+import com.dbs.utils.ConsoleLogger;
 
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 
 public class BackupRequestMessage extends ChordMessage{
     private final SimpleNodeInfo originNode;

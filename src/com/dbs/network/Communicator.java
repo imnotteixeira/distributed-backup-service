@@ -14,6 +14,7 @@ import javax.net.ssl.SSLSocket;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -96,6 +97,8 @@ public class Communicator {
                 Object o = in.readObject();
                 return ChordMessage.fromObject(o);
 
+            }catch (SocketTimeoutException e) {
+                System.out.println("HELLLLLO");
             } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             }
