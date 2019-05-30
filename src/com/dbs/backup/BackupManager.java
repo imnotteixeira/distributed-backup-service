@@ -132,12 +132,15 @@ public class BackupManager implements BackupService {
         try {
             BackupResponseMessage msg;
 
-            if(this.node.getState().addReplica(request.getReplicaId())){ //se ele ja tinha o ficheiro, que msg manda? ok top
+            if(this.node.getState().addReplica(request.getReplicaId())){
+                System.out.println("I already have the file!");
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }else{
+                System.out.println("I Dont have the file yet, but you can send!");
                 msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }
 
+            System.out.println("Sending the above response to " + request.getOriginNode().address + ":" + request.getOriginNode().port);
             this.node.getCommunicator().send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port), msg);
         } catch (NoSpaceException e) {
 

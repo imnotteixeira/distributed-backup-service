@@ -1,9 +1,10 @@
 package com.dbs.backup;
 
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.Objects;
 
-public class ReplicaIdentifier {
+public class ReplicaIdentifier implements Serializable {
 
     FileIdentifier fileId;
     BigInteger hash;

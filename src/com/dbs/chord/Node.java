@@ -5,6 +5,7 @@ import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
+import com.dbs.filemanager.FileManager;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NavigableSet;
@@ -28,6 +30,7 @@ public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
     public static final int REPLICATION_DEGREE = 3;
+    public static final int INITIAL_SPACE_LIMIT_BYTES = 10000;
 
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
@@ -80,7 +83,7 @@ public class Node implements Chord{
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
 
-        ConsoleLogger.log(Level.SEVERE, "My ID: " + nodeInfo.id);
+        ConsoleLogger.log(Level.INFO, "My ID: " + nodeInfo.id);
 
 
 
@@ -293,10 +296,8 @@ public class Node implements Chord{
 
         if(!(x instanceof NullNodeInfo)) {
             if(!x.id.equals(this.successor.id) && between(x.id, this.nodeInfo.id, this.successor.id)) {
-                ConsoleLogger.log(Level.SEVERE, "Here");
                 this.setSuccessor(x);
             } else if(this.successor.id.equals(this.nodeInfo.id) && this.predecessor != null) { // when I have a predecessor (newly joined node) but it should be my successor
-                ConsoleLogger.log(Level.SEVERE, "There");
                 this.setSuccessor(this.predecessor);
             }
         }
@@ -304,7 +305,6 @@ public class Node implements Chord{
 
 
         try {
-            ConsoleLogger.log(Level.SEVERE, "Notifying successor "+ this.successor);
             this.notify(this.successor);
         } catch (Exception e){
             //Successor was removed before sending notification
@@ -502,7 +502,7 @@ public class Node implements Chord{
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
         ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId);
-        ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
+        ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
         ChordMessage backupRequestResponse = request.get();
 
@@ -537,24 +537,33 @@ public class Node implements Chord{
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        //CODE TO SAVE FILE
-//        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
-//
-//        FileManager.writeToFile(directory.resolve(fileId.toString()).toString(), data);
-//
-//        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
-//
-//
-//
-//        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
-
         if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
+            ConsoleLogger.log(Level.SEVERE, "HERE");
             this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port),
                     new BackupNACKMessage(request.getOriginNode(), request.getReplicaId()));
+
+            return;
         }
+
+        ConsoleLogger.log(Level.SEVERE, "THERE");
 
         this.backupManager.storeReplica(request);
 
+    }
+
+    public void handleBackupPayload(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
+
+        //TALVEZ PASSAR ISTO PARA UMA FUNC DE BACKUP MANAGER
+
+        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+
+        FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getFileId().toString()).toString(), backupPayloadMessage.getData());
+
+        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), backupPayloadMessage.getReplicaId());
+
+
+
+        this.communicator.send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
     }
 
     public State getState() {
@@ -568,4 +577,6 @@ public class Node implements Chord{
     public NodeInfo getSuccessor() {
         return this.successor;
     }
+
+
 }

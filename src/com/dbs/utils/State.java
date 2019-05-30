@@ -3,13 +3,12 @@ package com.dbs.utils;
 import com.dbs.backup.FileIdentifier;
 import com.dbs.backup.NoSpaceException;
 import com.dbs.backup.ReplicaIdentifier;
+import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class State implements Serializable {
@@ -20,7 +19,10 @@ public class State implements Serializable {
     private ConcurrentHashMap<ReplicaIdentifier, SimpleNodeInfo> remoteReplicas;
 
     public State() {
-        this.maxSpace = Integer.MAX_VALUE;
+
+        this.maxSpace = Node.INITIAL_SPACE_LIMIT_BYTES;
+        this.replicas = new ConcurrentHashMap<>();
+        this.remoteReplicas = new ConcurrentHashMap<>();
     }
 
     public void setMaxSpace(int maxSpace) {

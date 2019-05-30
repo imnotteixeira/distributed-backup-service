@@ -1,8 +1,9 @@
 package com.dbs.backup;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class FileIdentifier {
+public class FileIdentifier implements Serializable {
 
     String fileName, creationTime;
 
