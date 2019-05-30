@@ -10,21 +10,33 @@ import java.util.concurrent.ExecutionException;
 
 public class BackupRequestMessage extends ChordMessage{
     private final SimpleNodeInfo originNode;
-    private final String fileName;
-    private final byte[] data;
+//    private final byte[] data;
     private final BigInteger fileId;
+    private final long fileSize;
 
-    public BackupRequestMessage(SimpleNodeInfo originNode, BigInteger fileId, String fileName, byte[] data) {
+    public BackupRequestMessage(SimpleNodeInfo originNode, BigInteger fileId, long fileSize) {
         super(MESSAGE_TYPE.BACKUP_REQUEST);
         this.originNode = originNode;
         this.fileId = fileId;
-        this.fileName = fileName;
-        this.data = data;
+        this.fileSize = fileSize;
+//        this.data = data;
 
     }
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        n.handleBackupRequest(this.originNode, this.fileId, this.fileName, this.data);
+        n.handleBackupRequest(this);
+    }
+
+    public BigInteger getFileId() {
+        return fileId;
+    }
+
+    public long getFileSize() {
+        return fileSize;
+    }
+
+    public SimpleNodeInfo getOriginNode() {
+        return this.originNode;
     }
 }

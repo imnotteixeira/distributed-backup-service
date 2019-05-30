@@ -8,9 +8,12 @@ import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
-public class BackupConfirmMessage extends BackupResponseMessage{
-    public BackupConfirmMessage(SimpleNodeInfo node, BigInteger fileId) {
-        super(MESSAGE_TYPE.BACKUP_CONFIRM, node, fileId);
+public class BackupResponseMessage extends NodeInfoMessage {
+    private final BigInteger fileId;
+
+    public BackupResponseMessage(MESSAGE_TYPE type, SimpleNodeInfo node, BigInteger fileId) {
+        super(type, node);
+        this.fileId = fileId;
     }
 
     @Override

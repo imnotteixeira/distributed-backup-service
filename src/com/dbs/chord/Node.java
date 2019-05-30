@@ -9,6 +9,7 @@ import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.dbs.utils.State;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -52,6 +54,7 @@ public class Node implements Chord{
     private NodeInfo successor;
 
     private int nextFinger = 0;
+    private State state;
 
 
     public Node(NodeInfo nodeInfo) throws IOException {
@@ -94,6 +97,8 @@ public class Node implements Chord{
 
         this.fingerTable = new ConcurrentSkipListMap<>();
         this.ongoingOperations = new ConcurrentHashMap<>();
+
+        this.state = new State();
 
         this.startListening();
     }
@@ -405,6 +410,7 @@ public class Node implements Chord{
     private void startListening() throws IOException {
         //ServerSocket s = new ServerSocket(nodeInfo.port);
         SSLServerSocket serverSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(this.nodeInfo.port);
+        System.out.println(Arrays.toString(serverSocket.getEnabledCipherSuites()));
 
         this.communicator = new Communicator(this, serverSocket);
 
@@ -487,11 +493,11 @@ public class Node implements Chord{
         return this.nodeInfo;
     }
 
-    public CompletableFuture<NodeInfo> requestBackup(BigInteger fileId, String fileName, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public CompletableFuture<NodeInfo> requestBackup(BigInteger fileId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileName, fileContent);
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileContent);
 
         NodeInfo targetNode = this.findSuccessor(fileId);
 
@@ -499,21 +505,44 @@ public class Node implements Chord{
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-        ConsoleLogger.log(Level.SEVERE, "HEY HEY HEY HYE OH TARGET NODE " + targetNode.address + ":" + targetNode.port);
         ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + fileId);
         ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
         return request;
     }
 
-    public void handleBackupRequest(SimpleNodeInfo originNode, BigInteger fileId, String fileName, byte[] data) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        ConsoleLogger.log(Level.SEVERE, "(NOT REALLY PLS IMPLEMENT FILEMANAGER HERE) I am Saving file "+ fileName + "!!");
+    public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+        //CODE TO SAVE FILE
+//        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+//
+//        FileManager.writeToFile(directory.resolve(fileId.toString()).toString(), data);
+//
+//        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
+//
+//
+//
+//        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
 
-        FileManager.writeToFile(directory.resolve(fileId.toString()).toString(), data);
+        BackupResponseMessage msg;
 
-        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
-        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
+        if(this.backupManager.canStore(request)) {
+            if(this.backupManager.hasFile(request.getFileId())) {
+                msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
+            }
+             msg = new BackupACKMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
+
+        } else {
+            msg = new BackupNACKMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
+        }
+
+        this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port), msg);
+
+
+
+    }
+
+    public State getState() {
+        return this.state;
     }
 }

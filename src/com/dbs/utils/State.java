@@ -19,8 +19,8 @@ public class State implements Serializable {
 
     private int getSpace() {
         int space = 0;
-        for (Integer fileSze : storedFiles.values()) {
-            space += fileSze;
+        for (Integer fileSize : storedFiles.values()) {
+            space += fileSize;
         }
 
         return space;

@@ -4,6 +4,7 @@ import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.filemanager.FileManager;
+import com.dbs.network.messages.BackupRequestMessage;
 import com.dbs.utils.ConsoleLogger;
 
 import java.io.FileNotFoundException;
@@ -66,7 +67,7 @@ public class BackupManager implements BackupService {
             throw new RemoteException("Could not read file contents", e);
         }
 
-        ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(fileIds, FileManager.getFileName(file), fileContent);
+        ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(fileIds, fileContent);
 
         // Wait until they are all done
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
@@ -95,13 +96,13 @@ public class BackupManager implements BackupService {
         return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
     }
 
-    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(BigInteger[] fileIds, String fileName, byte[] fileContent) {
+    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(BigInteger[] fileIds, byte[] fileContent) {
 
         ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(fileIds.length);
 
         for (int i = 0; i < fileIds.length; i++) {
             try {
-                CompletableFuture<NodeInfo> currRequest = this.node.requestBackup(fileIds[i], fileName, fileContent);
+                CompletableFuture<NodeInfo> currRequest = this.node.requestBackup(fileIds[i], fileContent);
 
                 futures.add(i,currRequest);
             } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
@@ -111,6 +112,14 @@ public class BackupManager implements BackupService {
 
         return futures;
 
+    }
+
+    public boolean hasFile(BigInteger fileId) {
+        return this.node.getState().hasFile(fileId);
+    }
+
+    public synchronized boolean canStore(long fileSize) {
+        return this.node.getState().hasSpace();
     }
     
     
