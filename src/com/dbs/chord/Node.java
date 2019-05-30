@@ -498,27 +498,37 @@ public class Node implements Chord{
 
         NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
 
-        CompletableFuture<NodeInfo> request = this.communicator.async_listenOnSocket(tempSocket);
+        CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
         ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId);
         ConsoleLogger.log(Level.INFO, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
-        NodeInfo payloadTarget = request.get();
+        ChordMessage backupRequestResponse = request.get();
 
-        SSLServerSocket payloadResponseSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
-        payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+        if(backupRequestResponse instanceof BackupACKMessage){
+            SimpleNodeInfo payloadTarget = ((NodeInfoMessage) backupRequestResponse).getNode();
 
-        BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId, fileContent);
+            SSLServerSocket payloadResponseSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+            payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        CompletableFuture<NodeInfo> payloadResponse = this.communicator.async_listenOnSocket(payloadResponseSocket);
+            BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId, fileContent);
 
-        this.communicator.send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
+            CompletableFuture<ChordMessage> payloadResponse = this.communicator.async_listenOnSocket(payloadResponseSocket);
 
-        //TODO THROW EXCEPTION IF PAYLOAD RESPONSE IS A NACK, HANDLE CONFIRM AND ACK MSGS
-        
-        return payloadResponse;
+            this.communicator.send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
+
+            ChordMessage payloadResponseMessage = payloadResponse.get();
+
+            if(!(payloadResponseMessage instanceof BackupConfirmMessage)){
+                ConsoleLogger.log(Level.SEVERE, "Failed to store replica of file!");
+            }
+        }else if(backupRequestResponse instanceof BackupNACKMessage){
+            ConsoleLogger.log(Level.WARNING, "No peer had enough space to store file!");
+        }
+
+        return new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode();
     }
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {

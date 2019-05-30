@@ -84,32 +84,20 @@ public class Communicator {
         });
     }
 
-    public CompletableFuture<NodeInfo> async_listenOnSocket(SSLServerSocket tempSocket) {
+    public CompletableFuture<ChordMessage> async_listenOnSocket(SSLServerSocket tempSocket) {
         return CompletableFuture.supplyAsync(()->{
             SSLSocket s;
-            NodeInfo nodeInfo = null;
             try {
-                nodeInfo = new NullNodeInfo();
+                s = (SSLSocket) tempSocket.accept();
 
-            s = (SSLSocket) tempSocket.accept();
+                ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+                Object o = in.readObject();
+                return ChordMessage.fromObject(o);
 
-            ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(s.getInputStream());
-            Object o = in.readObject();
-            NodeInfoMessage msg = (NodeInfoMessage) ChordMessage.fromObject(o);
-
-            if(!(msg.getNode() instanceof NullSimpleNodeInfo)){
-                nodeInfo = new NodeInfo(msg.getNode());
-            }
-
-            msg.handle(node);
-
-            s.close();
-            } catch (NoSuchAlgorithmException | ClassNotFoundException | IOException | InterruptedException | ExecutionException e) {
+            } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             }
-
-            return nodeInfo;
         });
     }
 
