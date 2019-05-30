@@ -9,6 +9,7 @@ import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.dbs.utils.Network;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -54,7 +56,7 @@ public class Node implements Chord{
     private int nextFinger = 0;
 
 
-    public Node(NodeInfo nodeInfo) throws IOException {
+    public Node(NodeInfo nodeInfo) throws IOException, NoSuchAlgorithmException {
 
         this.initNode(nodeInfo);
 
@@ -77,12 +79,10 @@ public class Node implements Chord{
         this(new NodeInfo(address, port));
     }
 
-    private void initNode(NodeInfo nodeInfo) throws IOException {
+    private void initNode(NodeInfo nodeInfo) throws IOException, NoSuchAlgorithmException {
         this.nodeInfo = nodeInfo;
 
         ConsoleLogger.log(Level.SEVERE, "My ID: " + nodeInfo.id);
-
-
 
         final String nodeAP = this.nodeInfo.getAccessPoint();
 
@@ -168,7 +168,7 @@ public class Node implements Chord{
     private NodeInfo requestSuccessor(NodeInfo targetNode, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         //ServerSocket tempSocket = new ServerSocket(0);
-        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        SSLServerSocket tempSocket = Network.createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
@@ -321,7 +321,7 @@ public class Node implements Chord{
 
         if(this.predecessor == null || this.predecessor.id.equals(this.nodeInfo.id)) return;
 
-        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        SSLServerSocket tempSocket = Network.createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         StatusCheckMessage msg = new StatusCheckMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()));
@@ -402,12 +402,11 @@ public class Node implements Chord{
         this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
     }
 
-    private void startListening() throws IOException {
+    private void startListening() throws IOException, NoSuchAlgorithmException {
         //ServerSocket s = new ServerSocket(nodeInfo.port);
-        SSLServerSocket serverSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(this.nodeInfo.port);
+        SSLServerSocket serverSocket = Network.createServerSocket(this.nodeInfo.port);
 
         this.communicator = new Communicator(this, serverSocket);
-
         this.communicator.listen();
     }
 
@@ -488,7 +487,7 @@ public class Node implements Chord{
     }
 
     public CompletableFuture<NodeInfo> requestBackup(BigInteger fileId, String fileName, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        SSLServerSocket tempSocket = Network.createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileName, fileContent);

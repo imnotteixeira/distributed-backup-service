@@ -9,11 +9,13 @@ import com.dbs.network.messages.NodeInfoMessage;
 import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -37,7 +39,6 @@ public class Communicator {
         node.getThreadPool().submit(() -> {
             while(true){
                 SSLSocket s = (SSLSocket) serverSocket.accept();
-
                 node.getThreadPool().submit(() -> {
                     try {
                         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());

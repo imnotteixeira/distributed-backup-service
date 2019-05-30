@@ -1,16 +1,28 @@
 package com.dbs.utils;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public class Network {
 
     private static final String TEST_CHANNEL = "239.0.0.0";
+
+    private static final String[] CIPHER_SUITES = {"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256" };
+
+    private static String[] enabledSuites;
 
     public static InetAddress getSelfAddress(int port) throws ExecutionException, InterruptedException {
 
@@ -48,5 +60,26 @@ public class Network {
 
         return wait.get();
 
+    }
+
+    private static void filterCipherSuites() throws NoSuchAlgorithmException {
+        SSLContext c = SSLContext.getDefault();
+        final Set<String> supportedSuites = new HashSet<>(Arrays.asList(c.getServerSocketFactory().getSupportedCipherSuites()));
+        final ArrayList<String> enabledSuites = new ArrayList<>();
+        for (String s: CIPHER_SUITES) {
+            if (supportedSuites.contains(s))
+                enabledSuites.add(s);
+        }
+        Network.enabledSuites = new String[enabledSuites.size()];
+        enabledSuites.toArray(Network.enabledSuites);
+    }
+
+    public static SSLServerSocket createServerSocket(int i) throws IOException, NoSuchAlgorithmException {
+        if (enabledSuites == null) {
+            Network.filterCipherSuites();
+        }
+        SSLServerSocket s = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(i);
+        s.setEnabledCipherSuites(enabledSuites);
+        return s;
     }
 }
