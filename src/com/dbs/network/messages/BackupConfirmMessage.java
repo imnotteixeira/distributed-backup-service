@@ -1,5 +1,6 @@
 package com.dbs.network.messages;
 
+import com.dbs.backup.FileIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
@@ -9,7 +10,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
 public class BackupConfirmMessage extends BackupResponseMessage{
-    public BackupConfirmMessage(SimpleNodeInfo node, BigInteger fileId) {
+    public BackupConfirmMessage(SimpleNodeInfo node, FileIdentifier fileId) {
         super(MESSAGE_TYPE.BACKUP_CONFIRM, node, fileId);
     }
 

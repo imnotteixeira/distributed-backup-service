@@ -53,7 +53,7 @@ public class BackupManager implements BackupService {
         // Waits for *all* futures to complete and returns a list of results.
         // If *any* future completes exceptionally then the resulting future will also complete exceptionally.
 
-        BigInteger[] fileIds;
+        FileIdentifier[] fileIds;
         byte[] fileContent;
         try {
             fileIds = FileManager.generateFileIds(file, Node.REPLICATION_DEGREE);
@@ -96,7 +96,7 @@ public class BackupManager implements BackupService {
         return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
     }
 
-    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(BigInteger[] fileIds, byte[] fileContent) {
+    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(FileIdentifier[] fileIds, byte[] fileContent) {
 
         ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(fileIds.length);
 
@@ -114,12 +114,12 @@ public class BackupManager implements BackupService {
 
     }
 
-    public boolean hasFile(BigInteger fileId) {
+    public boolean hasFile(FileIdentifier fileId) {
         return this.node.getState().hasFile(fileId);
     }
 
     public synchronized boolean canStore(long fileSize) {
-        return this.node.getState().hasSpace();
+        return this.node.getState().hasSpace(fileSize);
     }
     
     

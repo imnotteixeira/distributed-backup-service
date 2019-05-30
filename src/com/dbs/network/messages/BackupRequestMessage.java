@@ -1,5 +1,6 @@
 package com.dbs.network.messages;
 
+import com.dbs.backup.FileIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
@@ -11,10 +12,10 @@ import java.util.concurrent.ExecutionException;
 public class BackupRequestMessage extends ChordMessage{
     private final SimpleNodeInfo originNode;
 //    private final byte[] data;
-    private final BigInteger fileId;
+    private final FileIdentifier fileId;
     private final long fileSize;
 
-    public BackupRequestMessage(SimpleNodeInfo originNode, BigInteger fileId, long fileSize) {
+    public BackupRequestMessage(SimpleNodeInfo originNode, FileIdentifier fileId, long fileSize) {
         super(MESSAGE_TYPE.BACKUP_REQUEST);
         this.originNode = originNode;
         this.fileId = fileId;
@@ -28,7 +29,7 @@ public class BackupRequestMessage extends ChordMessage{
         n.handleBackupRequest(this);
     }
 
-    public BigInteger getFileId() {
+    public FileIdentifier getFileId() {
         return fileId;
     }
 

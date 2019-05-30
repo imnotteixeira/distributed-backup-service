@@ -1,6 +1,7 @@
 package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
+import com.dbs.backup.FileIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
@@ -493,13 +494,13 @@ public class Node implements Chord{
         return this.nodeInfo;
     }
 
-    public CompletableFuture<NodeInfo> requestBackup(BigInteger fileId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public CompletableFuture<NodeInfo> requestBackup(FileIdentifier fileId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileContent);
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), fileId, fileContent.length);
 
-        NodeInfo targetNode = this.findSuccessor(fileId);
+        NodeInfo targetNode = this.findSuccessor(fileId.getHash());
 
         CompletableFuture<NodeInfo> request = this.communicator.async_listenOnSocket(tempSocket);
 
@@ -526,7 +527,7 @@ public class Node implements Chord{
 
         BackupResponseMessage msg;
 
-        if(this.backupManager.canStore(request)) {
+        if(this.backupManager.canStore(request.getFileSize())) {
             if(this.backupManager.hasFile(request.getFileId())) {
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), request.getFileId());
             }

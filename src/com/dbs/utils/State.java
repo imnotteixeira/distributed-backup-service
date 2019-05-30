@@ -1,5 +1,7 @@
 package com.dbs.utils;
 
+import com.dbs.backup.FileIdentifier;
+
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -7,9 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class State implements Serializable {
 
     private int maxSpace;
-    private ConcurrentHashMap<String, Integer> storedFiles;
+    private ConcurrentHashMap<FileIdentifier, Integer> storedFiles;
 
-    State() {
+    public State() {
         this.maxSpace = Integer.MAX_VALUE;
     }
 
@@ -26,11 +28,11 @@ public class State implements Serializable {
         return space;
     }
 
-    public boolean hasSpace(int fileSize) {
+    public boolean hasSpace(long fileSize) {
         return this.maxSpace > (fileSize + this.getSpace());
     }
 
-    public boolean addFile(String id, int size) {
+    public boolean addFile(FileIdentifier id, int size) {
         if (hasSpace(size)) {
             storedFiles.put(id, size);
             return true;
@@ -39,11 +41,11 @@ public class State implements Serializable {
         }
     }
 
-    public boolean hasFile(String id) {
+    public boolean hasFile(FileIdentifier id) {
         return this.storedFiles.containsKey(id);
     }
 
-    public void deleteFile(String id) {
+    public void deleteFile(FileIdentifier id) {
         if (hasFile(id)) {
             storedFiles.remove(id);
         }
@@ -56,8 +58,8 @@ public class State implements Serializable {
             return "No stored chunks.\n";
         }
 
-        for (Map.Entry<String, Integer> file : storedFiles.entrySet()) {
-            files.append("Chunk Id: ").append(file.getKey()).append("\n");
+        for (Map.Entry<FileIdentifier, Integer> file : storedFiles.entrySet()) {
+            files.append("Chunk Id: ").append(file.getKey().getHash()).append("\n");
             files.append("Size: ").append(file.getValue()).append("\n");
         }
 
