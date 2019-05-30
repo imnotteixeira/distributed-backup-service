@@ -528,7 +528,12 @@ public class Node implements Chord{
             ConsoleLogger.log(Level.WARNING, "No peer had enough space to store file!");
         }
 
-        return new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode();
+
+        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
+
+        ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
+
+        return ret;
     }
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
