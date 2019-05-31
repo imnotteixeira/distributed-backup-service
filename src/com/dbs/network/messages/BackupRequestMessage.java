@@ -11,18 +11,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 
 public class BackupRequestMessage extends ChordMessage{
+    private final SimpleNodeInfo responseSocketInfo;
     private final SimpleNodeInfo originNode;
-//    private final byte[] data;
+
     private final ReplicaIdentifier replicaId;
 
-    public BackupRequestMessage(SimpleNodeInfo originNode, ReplicaIdentifier replicaId) {
+    public BackupRequestMessage(SimpleNodeInfo responseSocketInfo, SimpleNodeInfo originNode, ReplicaIdentifier replicaId) {
         super(MESSAGE_TYPE.BACKUP_REQUEST);
+        this.responseSocketInfo = responseSocketInfo;
         this.originNode = originNode;
+
         this.replicaId = replicaId;
     }
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        ConsoleLogger.log(Level.SEVERE, "RECEIVED A BACKUP REQUEST");
         n.handleBackupRequest(this);
     }
 
@@ -30,7 +34,11 @@ public class BackupRequestMessage extends ChordMessage{
         return replicaId;
     }
 
+    public SimpleNodeInfo getResponseSocketInfo() {
+        return this.responseSocketInfo;
+    }
+
     public SimpleNodeInfo getOriginNode() {
-        return this.originNode;
+        return originNode;
     }
 }

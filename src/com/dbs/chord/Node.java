@@ -1,12 +1,10 @@
 package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
-import com.dbs.backup.NoSpaceException;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
-import com.dbs.filemanager.FileManager;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
@@ -18,7 +16,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
@@ -30,7 +27,7 @@ public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
     public static final int REPLICATION_DEGREE = 3;
-    public static final int INITIAL_SPACE_LIMIT_BYTES = 10000;
+    public static final int INITIAL_SPACE_LIMIT_BYTES = 1;
 
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
@@ -193,24 +190,24 @@ public class Node implements Chord{
     }
 
     /**
-     * If this node is the successor or the predecessor of successor, answers back to originNode
+     * If this node is the successor or the predecessor of successor, answers back to temp socket of origin node
      * Ohterwise, forwards a TCP message to target node to find the successor of key
-     * @param originNode - node that requested the information originally
+     * @param responseSocketInfo - socket info to send the response
      * @param key - key to find
      * @return
      */
-    public void handleSuccessorRequest(SimpleNodeInfo originNode, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public void handleSuccessorRequest(SimpleNodeInfo responseSocketInfo, BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
 
         NodeInfo successor = this.findSuccessor(key);
-        NodeInfo asker = new NodeInfo(originNode);
+        NodeInfo asker = new NodeInfo(responseSocketInfo);
 
         //If we already know the actual successor
         if(successor.equals(this.nodeInfo) || successor.equals(this.successor)) {
             SuccessorMessage msg = new SuccessorMessage(key, new SimpleNodeInfo(successor));
             this.communicator.send(Utils.createClientSocket(asker.address, asker.port), msg);
         } else { //else propagate to other target, based on fingerTable
-            FindSuccessorMessage msg = new FindSuccessorMessage(originNode, key);
+            FindSuccessorMessage msg = new FindSuccessorMessage(responseSocketInfo, key);
             this.communicator.send(Utils.createClientSocket(successor.address, successor.port), msg);
         }
 
@@ -382,7 +379,7 @@ public class Node implements Chord{
         return request.get();
     }
 
-    public void handlePredecessorRequest(SimpleNodeInfo originNode) throws IOException, NoSuchAlgorithmException {
+    public void handlePredecessorRequest(SimpleNodeInfo responseSocketInfo) throws IOException, NoSuchAlgorithmException {
         PredecessorMessage msg;
 
         if(this.predecessor == null) {
@@ -391,7 +388,7 @@ public class Node implements Chord{
             msg = new PredecessorMessage(new SimpleNodeInfo(this.nodeInfo), new SimpleNodeInfo(this.predecessor));
         }
 
-        SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(originNode.address, originNode.port);
+        SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(responseSocketInfo.address, responseSocketInfo.port);
 
         ConsoleLogger.log(Level.WARNING, "Sending Predecessor info for node on port " + targetSocket.getPort());
         this.communicator.send(targetSocket, msg);
@@ -399,9 +396,9 @@ public class Node implements Chord{
     }
 
 
-    public void handleStatusCheck(SimpleNodeInfo originNode) throws IOException, NoSuchAlgorithmException {
+    public void handleStatusCheck(SimpleNodeInfo responseSocketInfo) throws IOException, NoSuchAlgorithmException {
         StatusCheckConfirmMessage msg = new StatusCheckConfirmMessage(new SimpleNodeInfo(this.nodeInfo));
-        this.communicator.send(Utils.createClientSocket(originNode.address, originNode.port), msg);
+        this.communicator.send(Utils.createClientSocket(responseSocketInfo.address, responseSocketInfo.port), msg);
     }
 
     private void startListening() throws IOException {
@@ -493,7 +490,7 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), replicaId);
+        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId);
 
         NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
 
@@ -505,6 +502,9 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
         ChordMessage backupRequestResponse = request.get();
+
+        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
+
 
         if(backupRequestResponse instanceof BackupACKMessage){
             System.out.println("Received ACK, sending file!");
@@ -521,20 +521,20 @@ public class Node implements Chord{
 
             ChordMessage payloadResponseMessage = payloadResponse.get();
 
-            System.out.println("The payload response message was " + payloadResponseMessage.getClass());
 
-
-            if(!(payloadResponseMessage instanceof BackupConfirmMessage)){
+            if(payloadResponseMessage instanceof BackupNACKMessage){
                 ConsoleLogger.log(Level.SEVERE, "Failed to store replica of file!");
+                ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
+            } else if(payloadResponseMessage instanceof  BackupConfirmMessage) {
+                ret.complete(new NodeInfo(((NodeInfoMessage) payloadResponseMessage).getNode()));
             }
         }else if(backupRequestResponse instanceof BackupNACKMessage){
-            ConsoleLogger.log(Level.WARNING, "No peer had enough space to store file!");
+
+            ConsoleLogger.log(Level.SEVERE, "No peer had enough space to store file!");
+
+            ret.complete(new NullNodeInfo());
         }
 
-
-        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
-
-        ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
 
         return ret;
     }
@@ -542,8 +542,9 @@ public class Node implements Chord{
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
-            this.communicator.send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port),
-                    new BackupNACKMessage(request.getOriginNode(), request.getReplicaId()));
+
+            this.communicator.send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
+                    new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
 
             return;
         }

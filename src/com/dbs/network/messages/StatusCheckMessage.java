@@ -8,15 +8,15 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
 public class StatusCheckMessage extends NodeInfoMessage {
-    SimpleNodeInfo originNode;
+    SimpleNodeInfo responseSocketInfo;
 
-    public StatusCheckMessage(SimpleNodeInfo originNode) {
-        super(MESSAGE_TYPE.STATUS_CHECK, originNode);
-        this.originNode = originNode;
+    public StatusCheckMessage(SimpleNodeInfo responseSocketInfo) {
+        super(MESSAGE_TYPE.STATUS_CHECK, responseSocketInfo);
+        this.responseSocketInfo = responseSocketInfo;
     }
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        n.handleStatusCheck(this.originNode);
+        n.handleStatusCheck(this.responseSocketInfo);
     }
 }

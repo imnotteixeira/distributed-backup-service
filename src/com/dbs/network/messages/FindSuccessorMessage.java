@@ -16,12 +16,12 @@ import java.util.logging.Level;
  */
 public class FindSuccessorMessage extends ChordMessage {
 
-    private SimpleNodeInfo originNode;
+    private SimpleNodeInfo responseSocketInfo;
     private BigInteger key;
 
-    public FindSuccessorMessage(SimpleNodeInfo originNode, BigInteger key) {
+    public FindSuccessorMessage(SimpleNodeInfo responseSocketInfo, BigInteger key) {
         super(MESSAGE_TYPE.FIND_SUCCESSOR);
-        this.originNode = originNode;
+        this.responseSocketInfo = responseSocketInfo;
         this.key = key;
     }
 
@@ -29,13 +29,13 @@ public class FindSuccessorMessage extends ChordMessage {
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         ConsoleLogger.log(Level.WARNING, "Received FETCH SUCCESSOR Message");
 
-        n.handleSuccessorRequest(this.originNode, this.key);
+        n.handleSuccessorRequest(this.responseSocketInfo, this.key);
     }
 
     @Override
     public String toString() {
         return "FindSuccessorMessage{" +
-                "originNode=" + originNode.toString() +
+                "responseSocketInfo=" + responseSocketInfo.toString() +
                 ", key=" + key +
                 '}';
     }
