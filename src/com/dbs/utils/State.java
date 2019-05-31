@@ -100,15 +100,21 @@ public class  State implements Serializable {
         return hasFile(id.getFileId()) && this.localReplicas.get(id.getFileId()).contains(id);
     }
 
+
     public SimpleNodeInfo getReplicaLocation(ReplicaIdentifier id) {
         return this.replicasLocation.getOrDefault(id, null);
     }
 
-    public void deleteReplica(ReplicaIdentifier id) {
+    public boolean deleteReplica(ReplicaIdentifier id) {
+
         if (hasReplica(id)) {
             localReplicas.get(id.getFileId()).remove(id);
-            //TODO É PRECISO APAGAR O FICHEIRO SE FOR A ULTIMA REPLICA
+            if(localReplicas.get(id.getFileId()).isEmpty()){
+                localReplicas.remove(id.getFileId());
+            }
+            return true;
         }
+        return false;
     }
 
     public void deleteFile(FileIdentifier id) {
@@ -194,5 +200,17 @@ public class  State implements Serializable {
         }
 
         return replicasToDelete;
+    }
+
+    public boolean hasReplicaLocation(ReplicaIdentifier replicaId) {
+        return this.replicasLocation.containsKey(replicaId);
+    }
+
+    public void removeReplicaLocation(ReplicaIdentifier replicaId) {
+        this.replicasLocation.remove(replicaId);
+    }
+
+    public boolean hasFileReplicas(FileIdentifier id) {
+        return this.localReplicas.containsKey(id);
     }
 }
