@@ -5,15 +5,15 @@ import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
-import com.dbs.network.messages.BackupACKMessage;
-import com.dbs.network.messages.BackupConfirmMessage;
-import com.dbs.network.messages.BackupRequestMessage;
-import com.dbs.network.messages.BackupResponseMessage;
+import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static com.dbs.chord.Utils.between;
 import static java.util.logging.Level.*;
 
 public class BackupManager implements BackupService {
@@ -71,30 +72,36 @@ public class BackupManager implements BackupService {
         ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(replicaIds, fileContent);
 
         // Wait until they are all done
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
 
         StringBuilder retMsg = new StringBuilder();
 
-        for (CompletableFuture<NodeInfo> future : futures) {
 
-            if(future.isDone()) {
-                BigInteger id = null;
-                try {
-                    id = future.get().id;
-                } catch (InterruptedException | ExecutionException e) {
+        for (int i = 0; i < futures.size(); i++) {
+
+            CompletableFuture<NodeInfo> future = futures.get(i);
+
+            try {
+
+                BigInteger id = future.get().id;
+
+                retMsg.append("Successfully saved replica " + i + " in node " + id + ".\n");
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                continue;
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof NoSpaceException) {
+                    retMsg.append("Could not store replica " + i + " of file. Not enough space in any peer.\n");
+                } else {
                     e.printStackTrace();
                 }
-                if(future.isCompletedExceptionally()) {
-                    retMsg.append("Tried to save replica in node " + id + " but could not.\n");
-                } else {
-                    retMsg.append("Successfully saved replica in node " + id + ".\n");
-                }
+                continue;
             }
 
         }
 
 
-        return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
+        return retMsg.toString();
     }
 
     private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(ReplicaIdentifier[] fileIds, byte[] fileContent) {
@@ -127,12 +134,12 @@ public class BackupManager implements BackupService {
         return this.node.getState().hasSpace(fileSize);
     }
 
-    public void storeReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
+    public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
 
         try {
             BackupResponseMessage msg;
 
-            if(this.node.getState().addReplica(request.getReplicaId())){
+            if(this.node.getState().hasFileToStore(request.getReplicaId())){
                 System.out.println("I already have the file!");
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }else{
@@ -140,14 +147,57 @@ public class BackupManager implements BackupService {
                 msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }
 
-            System.out.println("Sending the above response to " + request.getOriginNode().address + ":" + request.getOriginNode().port);
-            this.node.getCommunicator().send(Utils.createClientSocket(request.getOriginNode().address, request.getOriginNode().port), msg);
+            System.out.println("Sending the above response to " + request.getResponseSocketInfo().address + ":" + request.getResponseSocketInfo().port);
+            this.node.getCommunicator().send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port), msg);
         } catch (NoSpaceException e) {
 
-            BackupRequestMessage msg = new BackupRequestMessage(request.getOriginNode(), request.getReplicaId());
+            BackupRequestMessage msg = new BackupRequestMessage(request.getResponseSocketInfo(), request.getOriginNode(), request.getReplicaId());
 
             this.node.getCommunicator().send(Utils.createClientSocket(this.node.getSuccessor().address, this.node.getSuccessor().port), msg);
         }
+    }
+
+    public void storeReplica(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
+        try {
+            if (!this.node.getState().addReplica(backupPayloadMessage.getReplicaId())) {
+                Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+                FileManager.writeToFile(directory.resolve(String.valueOf(backupPayloadMessage.getReplicaId().getFileId().hashCode())).toString(), backupPayloadMessage.getData());
+            }
+
+            BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
+            System.out.println("answering to "+ backupPayloadMessage.getResponseSocketInfo().address + ":" + backupPayloadMessage.getResponseSocketInfo().port + " - thanks for the file!");
+            this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getResponseSocketInfo().address, backupPayloadMessage.getResponseSocketInfo().port), msg);
+
+        }catch(NoSpaceException e){
+            BackupNACKMessage msg = new BackupNACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
+            System.out.println("Could not store replica of "+ backupPayloadMessage.getResponseSocketInfo().address + ":" + backupPayloadMessage.getResponseSocketInfo().port + " after all");
+            this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getResponseSocketInfo().address, backupPayloadMessage.getResponseSocketInfo().port), msg);
+        }
+    }
+
+    public void redistributeEligibleReplicas(NodeInfo otherNode) {
+
+        this.node.getState().getReplicasLocation().forEach((replica, location) -> {
+            if(replica.hash.compareTo(otherNode.id) < 0) {
+                try {
+                    this.node.requestBackup(
+                            replica,
+                            FileManager.readFromFile(
+                                    Paths.get(
+                                            Node.NODE_PATH,
+                                            "backup",
+                                            String.valueOf(replica.getFileId().hashCode())).toString()
+                            ),
+                            new NodeInfo(location)
+                    );
+
+
+                } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        });
     }
 
 
@@ -187,4 +237,7 @@ public class BackupManager implements BackupService {
         ConsoleLogger.log(INFO,"Printing state");
         return null;
     }
+
+
+
 }

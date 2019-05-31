@@ -11,16 +11,16 @@ import java.util.logging.Level;
 
 public class FetchPredecessorMessage extends ChordMessage {
 
-    private SimpleNodeInfo originNode;
+    private SimpleNodeInfo responseSocketInfo;
 
-    public FetchPredecessorMessage(SimpleNodeInfo originNode) {
+    public FetchPredecessorMessage(SimpleNodeInfo responseSocketInfo) {
         super(MESSAGE_TYPE.FETCH_PREDECESSOR);
-        this.originNode = originNode;
+        this.responseSocketInfo = responseSocketInfo;
     }
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         ConsoleLogger.log(Level.WARNING, "Received FETCH PREDECESSOR Message");
-        n.handlePredecessorRequest(this.originNode);
+        n.handlePredecessorRequest(this.responseSocketInfo);
     }
 }

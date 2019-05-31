@@ -9,15 +9,15 @@ import java.util.concurrent.ExecutionException;
 
 public class NotifySuccessorMessage extends ChordMessage {
 
-    SimpleNodeInfo originNode;
+    SimpleNodeInfo responseSocketInfo;
 
-    public NotifySuccessorMessage(SimpleNodeInfo originNode) {
+    public NotifySuccessorMessage(SimpleNodeInfo responseSocketInfo) {
         super(MESSAGE_TYPE.NOTIFY_SUCCESSOR);
-        this.originNode = originNode;
+        this.responseSocketInfo = responseSocketInfo;
     }
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        n.handlePredecessorNotification(this.originNode);
+        n.handlePredecessorNotification(this.responseSocketInfo);
     }
 }

@@ -12,13 +12,13 @@ import java.util.logging.Level;
 
 public class BackupPayloadMessage extends ChordMessage {
 
-    SimpleNodeInfo originNode;
+    SimpleNodeInfo responseSocketInfo;
     ReplicaIdentifier replicaId;
     byte[] data;
 
-    public BackupPayloadMessage(SimpleNodeInfo originNode, ReplicaIdentifier replicaId, byte[] data) {
+    public BackupPayloadMessage(SimpleNodeInfo responseSocketInfo, ReplicaIdentifier replicaId, byte[] data) {
         super(MESSAGE_TYPE.BACKUP_PAYLOAD);
-        this.originNode = originNode;
+        this.responseSocketInfo = responseSocketInfo;
         this.replicaId = replicaId;
         this.data = data;
     }
@@ -29,8 +29,8 @@ public class BackupPayloadMessage extends ChordMessage {
         n.handleBackupPayload(this);
     }
 
-    public SimpleNodeInfo getOriginNode() {
-        return originNode;
+    public SimpleNodeInfo getResponseSocketInfo() {
+        return responseSocketInfo;
     }
 
     public ReplicaIdentifier getReplicaId() {
