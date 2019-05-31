@@ -38,6 +38,10 @@ public abstract class ChordMessage implements Serializable {
                     return (BackupNACKMessage) obj;
                 case BACKUP_PAYLOAD:
                     return (BackupPayloadMessage) obj;
+                case RESTORE_REQUEST:
+                    return (RestoreRequestMessage) obj;
+                case RESTORE_PAYLOAD:
+                    return (RestorePayloadMessage) obj;
                 default:
                     return msg;
             }
@@ -57,7 +61,8 @@ public abstract class ChordMessage implements Serializable {
         BACKUP_ACK,
         BACKUP_NACK,
         BACKUP_PAYLOAD,
-        RESTORE_REQUEST
+        RESTORE_REQUEST,
+        RESTORE_PAYLOAD
     }
 
     private MESSAGE_TYPE type;

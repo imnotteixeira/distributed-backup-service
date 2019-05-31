@@ -5,7 +5,6 @@ import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
 public class RestoreRequestMessage extends ChordMessage {
@@ -20,7 +19,15 @@ public class RestoreRequestMessage extends ChordMessage {
     }
 
     @Override
-    public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public void handle(Node n) throws IOException, ExecutionException, InterruptedException {
+        n.handleRestoreRequest(this);
+    }
 
+    public ReplicaIdentifier getReplicaId() {
+        return replicaId;
+    }
+
+    public SimpleNodeInfo getOriginNode() {
+        return originNode;
     }
 }

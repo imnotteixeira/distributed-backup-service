@@ -55,7 +55,7 @@ public class Main {
 
 //        try {
 //
-//            Path folder = FileManager.createDirectory("test");
+//            Path folder = FileManager.getOrCreateDirectory("test");
 //
 //            byte[] data = FileManager.readFromFile("asd.asd");
 //

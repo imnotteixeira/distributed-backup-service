@@ -6,6 +6,7 @@ import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 
+import java.io.File;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Map;
@@ -107,6 +108,15 @@ public class  State implements Serializable {
         if (hasFile(id)) {
             localReplicas.remove(id);
         }
+    }
+
+    public String getReplicaFromFileId(FileIdentifier fileId) {
+        HashSet<ReplicaIdentifier> replicaIdentifiers = this.localReplicas.get(fileId);
+        ReplicaIdentifier replica;
+        for (ReplicaIdentifier r : replicaIdentifiers) {
+            return r.getHash().toString();
+        }
+        return null;
     }
 
     private String storedFilesString() {

@@ -184,7 +184,7 @@ public class BackupManager implements BackupService {
     public void storeReplica(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
         try {
             if (!this.node.getState().addReplica(backupPayloadMessage.getReplicaId())) {
-                Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+                Path directory = FileManager.getOrCreateDirectory("backup", Node.NODE_PATH);
                 FileManager.writeToFile(directory.resolve(String.valueOf(backupPayloadMessage.getReplicaId().getFileId().hashCode())).toString(), backupPayloadMessage.getData());
             }
 
@@ -233,14 +233,18 @@ public class BackupManager implements BackupService {
             FileIdentifier fileId = FileIdentifier.fromPath(file);
             if (this.node.getState().hasFile(fileId)) {
                 ConsoleLogger.log(SEVERE, "I have the file.");
-                // get the file
+                this.node.restoreFromOwnStorage(fileId);
             } else {
                 ReplicaIdentifier[] replicaIds;
                 replicaIds = FileManager.generateReplicaIds(fileId, Node.REPLICATION_DEGREE);
                 for (ReplicaIdentifier r: replicaIds) {
-                    NodeInfo res = this.node.requestRestore(r).get();
-                    ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node " + res.getAccessPoint());
-                    break;
+                    try {
+                        NodeInfo res = this.node.requestRestore(r).get();
+                        ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node " + res.getAccessPoint());
+                        break;
+                    } catch (ExecutionException | InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         } catch (IOException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {

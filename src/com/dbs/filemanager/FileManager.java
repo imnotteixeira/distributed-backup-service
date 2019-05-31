@@ -88,7 +88,7 @@ public class FileManager {
      * @param directoryName directory Name
      * @return Returns 0 on success and -1 if directory already exists
      */
-    public static Path createDirectory(String directoryName) throws IOException {
+    public static Path getOrCreateDirectory(String directoryName) throws IOException {
 
         try {
 
@@ -104,7 +104,7 @@ public class FileManager {
      * @param directoryName directory Name
      * @return Returns 0 on success and -1 if directory already exists
      */
-    public static Path createDirectory(String directoryName, String rootFolder) throws IOException {
+    public static Path getOrCreateDirectory(String directoryName, String rootFolder) throws IOException {
 
 
         Path path = Paths.get(rootFolder, directoryName);

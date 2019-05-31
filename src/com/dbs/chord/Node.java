@@ -2,10 +2,12 @@ package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
 import com.dbs.backup.NoSpaceException;
+import com.dbs.backup.FileIdentifier;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.chord.operations.SuccessorRequestOperationEntry;
+import com.dbs.filemanager.FileManager;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
@@ -17,21 +19,22 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
 
 import static com.dbs.chord.Utils.*;
+import static java.util.logging.Level.SEVERE;
 
 public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
     public static final int REPLICATION_DEGREE = 3;
-    public static final int INITIAL_SPACE_LIMIT_BYTES = 25;
-
     private static final int THREAD_POOL_SIZE = 150;
-    public static final int REQUEST_TIMEOUT_MS = 5000;
+    public static final int INITIAL_SPACE_LIMIT_BYTES = 1000000000;
+    public static final int REQUEST_TIMEOUT_MS = 8000;
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
@@ -314,7 +317,7 @@ public class Node implements Chord{
 
     @Override
     public void handleSuccessorFail(){
-        ConsoleLogger.log(Level.SEVERE, "Successor offline - Fault tolerance not implemented");
+        ConsoleLogger.log(SEVERE, "Successor offline - Fault tolerance not implemented");
     }
 
 
@@ -339,7 +342,7 @@ public class Node implements Chord{
             request.get();
 
         } catch(Exception e) {
-            ConsoleLogger.log(Level.SEVERE, "Predecessor went offline!");
+            ConsoleLogger.log(SEVERE, "Predecessor went offline!");
             if(this.predecessor.id.equals(this.successor.id)){
                 this.setSuccessor(new NullNodeInfo());
             }
@@ -425,16 +428,16 @@ public class Node implements Chord{
         this.successor = successor;
         this.fingerTable.put(1, successor);
 
-        ConsoleLogger.log(Level.SEVERE, "My successor is now " + successor.id);
+        ConsoleLogger.log(SEVERE, "My successor is now " + successor.id);
     }
 
     private void setPredecessor(NodeInfo predecessor) {
         this.predecessor = predecessor;
 
         if(predecessor != null) {
-            ConsoleLogger.log(Level.SEVERE, "My predecessor is now " + predecessor.id);
+            ConsoleLogger.log(SEVERE, "My predecessor is now " + predecessor.id);
         } else {
-            ConsoleLogger.log(Level.SEVERE, "My predecessor is now null");
+            ConsoleLogger.log(SEVERE, "My predecessor is now null");
         }
 
 
@@ -506,6 +509,7 @@ public class Node implements Chord{
         ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId.getHash());
         ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
+
         ChordMessage backupRequestResponse = request.get();
 
         CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
@@ -528,14 +532,14 @@ public class Node implements Chord{
 
 
             if(payloadResponseMessage instanceof BackupNACKMessage){
-                ConsoleLogger.log(Level.SEVERE, "Failed to store replica of file!");
+                ConsoleLogger.log(SEVERE, "Failed to store replica of file!");
                 ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
             } else if(payloadResponseMessage instanceof  BackupConfirmMessage) {
                 ret.complete(new NodeInfo(((NodeInfoMessage) payloadResponseMessage).getNode()));
             }
         }else if(backupRequestResponse instanceof BackupNACKMessage){
 
-            ConsoleLogger.log(Level.SEVERE, "No peer had enough space to store file!");
+            ConsoleLogger.log(SEVERE, "No peer had enough space to store file!");
 
             ret.completeExceptionally(new NoSpaceException());
         } else if(backupRequestResponse instanceof BackupConfirmMessage){
@@ -594,12 +598,14 @@ public class Node implements Chord{
 
         NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
 
+        ConsoleLogger.log(SEVERE, targetNode.address + ":" + targetNode.port);
+
         CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-        ConsoleLogger.log(Level.SEVERE, "I want to restore file with key " + replicaId);
-        ConsoleLogger.log(Level.SEVERE, "Sent restore request for node at " + targetNode.address + ":" + targetNode.port);
+        ConsoleLogger.log(SEVERE, "I want to restore file with key " + replicaId);
+        ConsoleLogger.log(SEVERE, "Sent restore request for node at " + targetNode.address + ":" + targetNode.port);
 
         ChordMessage restoreRequestResponse = request.get();
 
@@ -617,14 +623,38 @@ public class Node implements Chord{
 
     private void storeRestorePayload(RestorePayloadMessage message) throws IOException, ExecutionException, InterruptedException {
 
-        Path directory = FileManager.createDirectory("restored", Node.NODE_PATH);
+        Path directory = FileManager.getOrCreateDirectory("restored", Node.NODE_PATH);
 
-        FileManager.writeToFile(directory.resolve(message.getReplicaId().getHash().toString()).toString(), message.getData());
+        String fileName = String.valueOf(message.getReplicaId().getFileId().getFileName());
+
+        FileManager.writeToFile(directory.resolve(fileName).toString(), message.getData());
 
         //BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), backupPayloadMessage.getReplicaId());
 
         //System.out.println("answering to "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " - thanks for the file!");
         //this.communicator.send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
 
+    }
+
+    public void handleRestoreRequest(RestoreRequestMessage message) throws IOException, ExecutionException, InterruptedException {
+        ConsoleLogger.log(SEVERE, "Received restore request");
+        final ReplicaIdentifier replicaId = message.getReplicaId();
+        if (this.state.hasReplica(replicaId)) {
+            ConsoleLogger.log(SEVERE, "I have the file");
+            String fileName = String.valueOf(replicaId.getFileId().hashCode());
+            Path directory = FileManager.getOrCreateDirectory("backup", NODE_PATH);
+            byte[] data = FileManager.readFromFile(directory.resolve(fileName).toString());
+            this.communicator.send(createClientSocket(message.getOriginNode().address, message.getOriginNode().port),
+                    new RestorePayloadMessage(message.getOriginNode(), replicaId, data));
+            ConsoleLogger.log(SEVERE, "Sent it over");
+        }
+    }
+
+    public void restoreFromOwnStorage(FileIdentifier fileId) throws IOException, ExecutionException, InterruptedException {
+        Path directory = FileManager.getOrCreateDirectory("backup", NODE_PATH);
+        String fileName = String.valueOf(fileId.hashCode());
+        byte[] data = FileManager.readFromFile(directory.resolve(fileName).toString());
+        directory = FileManager.getOrCreateDirectory("restored", NODE_PATH);
+        FileManager.writeToFile(directory.resolve(fileId.getFileName()).toString(), data);
     }
 }
