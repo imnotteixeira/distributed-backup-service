@@ -7,7 +7,6 @@ import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
-import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -22,7 +21,6 @@ import java.rmi.server.UnicastRemoteObject;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -226,8 +224,35 @@ public class BackupManager implements BackupService {
 
     @Override
     public String delete(String file) throws RemoteException {
-        ConsoleLogger.log(INFO,"Starting delete");
-        return null;
+
+        StringBuilder retMsg = new StringBuilder();
+
+        try {
+            ReplicaIdentifier[] replicaIds = FileManager.generateReplicaIds(file, Node.REPLICATION_DEGREE);
+
+            ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>();
+
+            for(ReplicaIdentifier replicaId : replicaIds){
+                futures.add(this.node.delete(replicaId));
+            }
+
+            for(int i = 0; i < futures.size(); i++){
+                CompletableFuture<NodeInfo> future = futures.get(i);
+
+                try{
+                    NodeInfo result = future.get();
+                    retMsg.append("Successfully deleted replica " + i + " with hash " + replicaIds[i].getHash() + " that was in node " + result.id + "\n");
+                } catch (InterruptedException | ExecutionException e) {
+                    continue;
+                }
+            }
+
+        } catch (IOException | NoSuchAlgorithmException e) {
+            return "Failed to generate replica ids";
+        }
+
+
+        return retMsg.toString();
     }
 
     @Override
@@ -314,4 +339,35 @@ public class BackupManager implements BackupService {
     }
 
 
+    public synchronized void deleteReplica(DeleteReplicaMessage msg) {
+        try {
+            if(this.node.getState().deleteReplica(msg.getReplicaId())){
+
+                if(!this.node.getState().hasFileReplicas(msg.getReplicaId().getFileId())) {
+                    FileManager.deleteFile(Paths.get(
+                            Node.NODE_PATH,
+                            "backup",
+                            String.valueOf(msg.getReplicaId().getFileId().hashCode())).toString());
+                }
+
+                DeleteConfirmationMessage confirmation = new DeleteConfirmationMessage(new SimpleNodeInfo(this.node.getNodeInfo()));
+
+                this.node.getState().removeReplicaLocation(msg.getReplicaId());
+
+                this.node.getCommunicator().send(Utils.createClientSocket(msg.getNode().address, msg.getNode().port), confirmation);
+
+            }else if(this.node.getState().hasReplicaLocation(msg.getReplicaId())){
+                SimpleNodeInfo targetNode = this.node.getState().getReplicasLocation().get(msg.getReplicaId());
+
+                DeleteReplicaMessage nextMsg = new DeleteReplicaMessage(msg.getNode(), msg.getReplicaId());
+
+                this.node.getCommunicator().send(Utils.createClientSocket(targetNode.address, targetNode.port), nextMsg);
+
+                this.node.getState().removeReplicaLocation(msg.getReplicaId());
+
+            }
+        } catch (IOException | NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+    }
 }

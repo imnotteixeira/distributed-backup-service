@@ -13,6 +13,7 @@ import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 import com.dbs.utils.State;
+import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -664,5 +665,37 @@ public class Node implements Chord {
         byte[] data = FileManager.readFromFile(directory.resolve(fileName).toString());
         directory = FileManager.getOrCreateDirectory("restored", NODE_PATH);
         FileManager.writeToFile(directory.resolve(fileId.getFileName()).toString(), data);
+    }
+
+    public void handleReplicaDeletion(DeleteReplicaMessage deleteReplicaMessage) {
+        this.backupManager.deleteReplica(deleteReplicaMessage);
+    }
+
+    public CompletableFuture<NodeInfo> delete(ReplicaIdentifier replicaId) {
+
+        CompletableFuture<NodeInfo> result = new CompletableFuture<NodeInfo>();
+
+        try {
+
+            SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+            tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+            NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
+
+            CompletableFuture<ChordMessage> future = this.communicator.async_listenOnSocket(tempSocket);
+
+            DeleteReplicaMessage msg = new DeleteReplicaMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), replicaId);
+
+            this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
+
+            DeleteConfirmationMessage response = (DeleteConfirmationMessage) future.get();
+
+            result.complete(new NodeInfo(response.getNode()));
+
+        } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+            result.completeExceptionally(new Exception("Could not delete file. Maybe it is not in the network"));
+        }
+
+        return result;
     }
 }
