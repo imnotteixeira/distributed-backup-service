@@ -7,6 +7,7 @@ import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -20,8 +21,11 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 
 import static com.dbs.chord.Node.REQUEST_TIMEOUT_MS;
 import static java.util.logging.Level.*;
@@ -77,29 +81,7 @@ public class BackupManager implements BackupService {
         StringBuilder retMsg = new StringBuilder();
 
 
-        for (int i = 0; i < futures.size(); i++) {
-
-            CompletableFuture<NodeInfo> future = futures.get(i);
-
-            try {
-
-                BigInteger id = future.get().id;
-
-                retMsg.append("Successfully saved replica " + i + " in node " + id + ".\n");
-
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                continue;
-            } catch (ExecutionException e) {
-                if (e.getCause() instanceof NoSpaceException) {
-                    retMsg.append("Could not store replica " + i + " of file. Not enough space in any peer.\n");
-                } else {
-                    e.printStackTrace();
-                }
-                continue;
-            }
-
-        }
+        handleBackupFutures(retMsg, futures);
 
 
         return retMsg.toString();
@@ -112,7 +94,6 @@ public class BackupManager implements BackupService {
         for (int i = 0; i < fileIds.length; i++) {
             try {
                 CompletableFuture<NodeInfo> currRequest = this.node.requestBackup(fileIds[i], fileContent);
-
                 futures.add(i,currRequest);
             } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
                 //continue
@@ -143,6 +124,7 @@ public class BackupManager implements BackupService {
             if(this.node.getState().hasFileToStore(request.getReplicaId())){
                 System.out.println("I already have the file!");
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
+                this.node.getState().addReplica(request.getReplicaId());
             }else{
                 System.out.println("I Dont have the file yet, but you can send!");
                 msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
@@ -239,10 +221,86 @@ public class BackupManager implements BackupService {
 
     @Override
     public String state() throws RemoteException {
-        ConsoleLogger.log(INFO,"Printing state");
-        return null;
+        return this.node.getState().toString();
     }
 
+    @Override
+    public String reclaim(int newSizeBytes) throws RemoteException {
+        StringBuilder retMsg = new StringBuilder();
+
+        ArrayList<ReplicaIdentifier> replicasToDelete = this.node.getState().freeSpace(newSizeBytes);
+
+        ConsoleLogger.log(Level.SEVERE, "Number of replicas to delete: " + Integer.toString(replicasToDelete.size()));
+
+        HashMap<FileIdentifier, byte[]> filesToDelete = new HashMap<>();
+
+        for(ReplicaIdentifier replica : replicasToDelete){
+            if(!filesToDelete.containsKey(replica.getFileId())){
+                try {
+                    filesToDelete.put(replica.getFileId(),
+                            FileManager.readFromFile(Paths.get(
+                                    Node.NODE_PATH,
+                                    "backup",
+                                    String.valueOf(replica.getFileId().hashCode())).toString()));
+                } catch (ExecutionException | InterruptedException | FileNotFoundException e) {
+                    return "Could not find file " + replica.getFileId().fileName + " with hash " + replica.getFileId().hashCode();
+                }
+            }
+        }
+
+        for(FileIdentifier file : filesToDelete.keySet()){
+            try {
+                FileManager.deleteFile(Paths.get(
+                        Node.NODE_PATH,
+                        "backup",
+                        String.valueOf(file.hashCode())).toString());
+            } catch (IOException e) {
+                return "Could not delete file " + file.fileName + " with hash " + file.hashCode();
+            }
+        }
+
+        ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(replicasToDelete.size());
+
+        for(ReplicaIdentifier replica : replicasToDelete){
+            try {
+                CompletableFuture<NodeInfo> future = this.node.requestBackup(replica, filesToDelete.get(replica.getFileId()));
+                futures.add(future);
+            } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        handleBackupFutures(retMsg, futures);
+
+        return retMsg.toString();
+
+    }
+
+    private void handleBackupFutures(StringBuilder retMsg, ArrayList<CompletableFuture<NodeInfo>> futures) {
+        for (int i = 0; i < futures.size(); i++) {
+
+            CompletableFuture<NodeInfo> future = futures.get(i);
+
+            try {
+
+                BigInteger id = future.get().id;
+
+                retMsg.append("Successfully saved replica " + i + " in node " + id + ".\n");
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                continue;
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof NoSpaceException) {
+                    retMsg.append("Could not store replica " + i + " of file. Not enough space in any peer.\n");
+                } else {
+                    e.printStackTrace();
+                }
+                continue;
+            }
+
+        }
+    }
 
 
 }
