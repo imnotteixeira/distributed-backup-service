@@ -15,16 +15,31 @@ public class TestApp {
             BackupService peer = TestApp.lookup(args[0]);
             switch (args[1]) {
                 case "BACKUP":
-                    System.out.println(peer.backup("asd.asd"));
+                    if(args.length != 3){
+                        System.out.println("No file was provided. Usage: <PeerAP> BACKUP <fileName>");
+                    }else {
+                        System.out.println(peer.backup(args[2]));
+                    }
                     break;
                 case "RESTORE":
                     System.out.println(peer.restore("asd.asd"));
                     break;
                 case "DELETE":
-                    System.out.println(peer.delete("file"));
+                    if(args.length != 3){
+                        System.out.println("No file was provided. Usage: <PeerAP> DELETE <fileName>");
+                    }else {
+                        System.out.println(peer.delete(args[2]));
+                    }
                     break;
                 case "STATE":
                     System.out.println(peer.state());
+                    break;
+                case "RECLAIM":
+                    if(args.length != 3){
+                        System.out.println("No number of bytes were provided. Usage: <PeerAP> RECLAIM <newSizeBytes>");
+                    }else {
+                        System.out.println(peer.reclaim(Integer.parseInt(args[2])));
+                    }
                     break;
                 default:
                     throw new InvalidSubprotocolException();

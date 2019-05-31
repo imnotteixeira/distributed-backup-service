@@ -4,10 +4,13 @@ import com.dbs.backup.FileIdentifier;
 import com.dbs.backup.NoSpaceException;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.Node;
+import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 
 import java.io.File;
 import java.io.Serializable;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -118,16 +121,32 @@ public class  State implements Serializable {
         StringBuilder files = new StringBuilder();
 
         if (localReplicas.isEmpty()) {
-            return "No stored chunks.\n";
+            return "No stored files.\n";
         }
 
         for (Map.Entry<FileIdentifier, HashSet<ReplicaIdentifier>> entry : localReplicas.entrySet()) {
             files.append("File: ").append(entry.getKey().getFileName()).append("\n");
             files.append("Size: ").append(entry.getKey().getFileSize()).append("\n");
-            files.append("Number of Replicas: ").append(entry.getValue().size()).append("\n");
+            files.append("Number of Replicas: ").append(entry.getValue().size()).append("\n\n");
         }
 
         return files.toString();
+    }
+
+    private String replicaLocationsString() {
+        StringBuilder result = new StringBuilder();
+
+        if (replicasLocation.isEmpty()) {
+            return "No known replica locations.\n";
+        }
+
+        replicasLocation.forEach((key, value) -> {
+            try {
+                result.append("Replica number " + key.getHash() + " of file " + key.getFileId().getFileName() + " is in node " + new NodeInfo(value.address, value.port).id + "\n");
+            } catch (NoSuchAlgorithmException e) {}
+        });
+
+        return result.toString();
     }
 
     @Override
@@ -136,12 +155,44 @@ public class  State implements Serializable {
         state = "[STATE]\n";
         state += "\nBacked up files:\n";
         state += storedFilesString();
+        state += "\nReplica locations:\n";
+        state += replicaLocationsString();
         state += "\nUsed space: " +  this.getSpace();
         state += "\nMax space: " + this.maxSpace + "\n";
         return state;
     }
 
+
     public ConcurrentHashMap<ReplicaIdentifier, SimpleNodeInfo> getReplicasLocation() {
         return replicasLocation;
+    }
+
+    public ArrayList<ReplicaIdentifier> freeSpace(int newSizeBytes) {
+
+        int minimumSpaceToFree = this.maxSpace - newSizeBytes;
+
+        setMaxSpace(newSizeBytes);
+
+        if(minimumSpaceToFree <= 0){
+            return new ArrayList<>();
+        }
+
+        ArrayList<ReplicaIdentifier> replicasToDelete = new ArrayList<>();
+        int totalFreedSpace = 0;
+
+        for(FileIdentifier file : localReplicas.keySet()){
+            if(totalFreedSpace >= minimumSpaceToFree){
+                break;
+            }
+
+            for(ReplicaIdentifier replica : this.localReplicas.get(file)){
+                replicasToDelete.add(replica);
+            }
+
+            totalFreedSpace += file.getFileSize();
+            deleteFile(file);
+        }
+
+        return replicasToDelete;
     }
 }

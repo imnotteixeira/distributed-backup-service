@@ -7,4 +7,5 @@ public interface BackupService extends Remote {
     String restore(String file) throws RemoteException;
     String delete(String file) throws RemoteException;
     String state() throws RemoteException;
+    String reclaim(int newSizeBytes) throws RemoteException;
 }
