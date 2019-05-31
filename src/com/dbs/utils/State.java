@@ -15,14 +15,14 @@ public class State implements Serializable {
 
     private int maxSpace;
 
-    private ConcurrentHashMap<FileIdentifier, HashSet<ReplicaIdentifier>> replicas;
-    private ConcurrentHashMap<ReplicaIdentifier, SimpleNodeInfo> remoteReplicas;
+    private ConcurrentHashMap<FileIdentifier, HashSet<ReplicaIdentifier>> localReplicas;
+    private ConcurrentHashMap<ReplicaIdentifier, SimpleNodeInfo> replicasLocation;
 
     public State() {
 
         this.maxSpace = Node.INITIAL_SPACE_LIMIT_BYTES;
-        this.replicas = new ConcurrentHashMap<>();
-        this.remoteReplicas = new ConcurrentHashMap<>();
+        this.localReplicas = new ConcurrentHashMap<>();
+        this.replicasLocation = new ConcurrentHashMap<>();
     }
 
     public void setMaxSpace(int maxSpace) {
@@ -31,7 +31,7 @@ public class State implements Serializable {
 
     private int getSpace() {
         int space = 0;
-        for (FileIdentifier fileId : replicas.keySet()) {
+        for (FileIdentifier fileId : localReplicas.keySet()) {
             space += fileId.getFileSize();
         }
 
@@ -71,48 +71,48 @@ public class State implements Serializable {
         if(hasReplica(replicaId)) return true;
 
         if(hasFile(replicaId.getFileId())){
-            replicas.get(replicaId.getFileId()).add(replicaId);
+            localReplicas.get(replicaId.getFileId()).add(replicaId);
             return true;
         }
 
         if (hasSpace(replicaId.getFileId().getFileSize())){
             HashSet<ReplicaIdentifier> newSet = new HashSet<>();
             newSet.add(replicaId);
-            replicas.put(replicaId.getFileId(), newSet);
+            localReplicas.put(replicaId.getFileId(), newSet);
             return false;
         }
         throw new NoSpaceException();
     }
 
     public boolean hasFile(FileIdentifier id) {
-        return this.replicas.keySet().contains(id);
+        return this.localReplicas.keySet().contains(id);
     }
 
     public boolean hasReplica(ReplicaIdentifier id) {
-        return hasFile(id.getFileId()) && this.replicas.get(id.getFileId()).contains(id);
+        return hasFile(id.getFileId()) && this.localReplicas.get(id.getFileId()).contains(id);
     }
 
     public void deleteReplica(ReplicaIdentifier id) {
         if (hasReplica(id)) {
-            replicas.get(id.getFileId()).remove(id);
+            localReplicas.get(id.getFileId()).remove(id);
             //TODO É PRECISO APAGAR O FICHEIRO SE FOR A ULTIMA REPLICA
         }
     }
 
     public void deleteFile(FileIdentifier id) {
         if (hasFile(id)) {
-            replicas.remove(id);
+            localReplicas.remove(id);
         }
     }
 
     private String storedFilesString() {
         StringBuilder files = new StringBuilder();
 
-        if (replicas.isEmpty()) {
+        if (localReplicas.isEmpty()) {
             return "No stored chunks.\n";
         }
 
-        for (Map.Entry<FileIdentifier, HashSet<ReplicaIdentifier>> entry : replicas.entrySet()) {
+        for (Map.Entry<FileIdentifier, HashSet<ReplicaIdentifier>> entry : localReplicas.entrySet()) {
             files.append("File: ").append(entry.getKey().getFileName()).append("\n");
             files.append("Size: ").append(entry.getKey().getFileSize()).append("\n");
             files.append("Number of Replicas: ").append(entry.getValue().size()).append("\n");
@@ -130,5 +130,9 @@ public class State implements Serializable {
         state += "\nUsed space: " +  this.getSpace();
         state += "\nMax space: " + this.maxSpace + "\n";
         return state;
+    }
+
+    public ConcurrentHashMap<ReplicaIdentifier, SimpleNodeInfo> getReplicasLocation() {
+        return replicasLocation;
     }
 }

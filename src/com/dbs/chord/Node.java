@@ -28,7 +28,7 @@ public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
     public static final int REPLICATION_DEGREE = 3;
-    public static final int INITIAL_SPACE_LIMIT_BYTES = 1;
+    public static final int INITIAL_SPACE_LIMIT_BYTES = 1000;
 
     private static final int THREAD_POOL_SIZE = 150;
     private static final int REQUEST_TIMEOUT_MS = 5000;
@@ -262,6 +262,8 @@ public class Node implements Chord{
 
         if(this.predecessor == null || this.predecessor.id.equals(this.nodeInfo.id) || between(potentialPredecessor.id, this.predecessor.id, this.nodeInfo.id)) {
             this.setPredecessor(potentialPredecessor);
+
+            this.backupManager.redistributeEligibleReplicas(potentialPredecessor);
         }
 
     }
@@ -487,13 +489,11 @@ public class Node implements Chord{
         return this.nodeInfo;
     }
 
-    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent, NodeInfo targetNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
         BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId);
-
-        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
 
         CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
 
@@ -537,6 +537,14 @@ public class Node implements Chord{
         }
 
         return ret;
+
+    }
+
+
+    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
+
+        return requestBackup(replicaId, fileContent, targetNode);
     }
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {

@@ -13,6 +13,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static com.dbs.chord.Utils.between;
 import static java.util.logging.Level.*;
 
 public class BackupManager implements BackupService {
@@ -159,7 +161,7 @@ public class BackupManager implements BackupService {
         try {
             if (!this.node.getState().addReplica(backupPayloadMessage.getReplicaId())) {
                 Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
-                FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getHash().toString()).toString(), backupPayloadMessage.getData());
+                FileManager.writeToFile(directory.resolve(String.valueOf(backupPayloadMessage.getReplicaId().getFileId().hashCode())).toString(), backupPayloadMessage.getData());
             }
 
             BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
@@ -171,6 +173,31 @@ public class BackupManager implements BackupService {
             System.out.println("Could not store replica of "+ backupPayloadMessage.getResponseSocketInfo().address + ":" + backupPayloadMessage.getResponseSocketInfo().port + " after all");
             this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getResponseSocketInfo().address, backupPayloadMessage.getResponseSocketInfo().port), msg);
         }
+    }
+
+    public void redistributeEligibleReplicas(NodeInfo otherNode) {
+
+        this.node.getState().getReplicasLocation().forEach((replica, location) -> {
+            if(replica.hash.compareTo(otherNode.id) < 0) {
+                try {
+                    this.node.requestBackup(
+                            replica,
+                            FileManager.readFromFile(
+                                    Paths.get(
+                                            Node.NODE_PATH,
+                                            "backup",
+                                            String.valueOf(replica.getFileId().hashCode())).toString()
+                            ),
+                            new NodeInfo(location)
+                    );
+
+
+                } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        });
     }
 
 
@@ -191,6 +218,7 @@ public class BackupManager implements BackupService {
         ConsoleLogger.log(INFO,"Printing state");
         return null;
     }
+
 
 
 }
