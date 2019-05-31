@@ -28,10 +28,10 @@ public class Node implements Chord{
 
     public static final int MAX_FILE_SIZE_BYTES = (int) (64 *10e6);
     public static final int REPLICATION_DEGREE = 3;
-    public static final int INITIAL_SPACE_LIMIT_BYTES = 1000;
+    public static final int INITIAL_SPACE_LIMIT_BYTES = 25;
 
     private static final int THREAD_POOL_SIZE = 150;
-    private static final int REQUEST_TIMEOUT_MS = 5000;
+    public static final int REQUEST_TIMEOUT_MS = 5000;
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
@@ -81,7 +81,7 @@ public class Node implements Chord{
     private void initNode(NodeInfo nodeInfo) throws IOException {
         this.nodeInfo = nodeInfo;
 
-        ConsoleLogger.log(Level.INFO, "My ID: " + nodeInfo.id);
+        ConsoleLogger.log(Level.SEVERE, "My ID: " + nodeInfo.id);
 
 
 
@@ -493,13 +493,17 @@ public class Node implements Chord{
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-        BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port), replicaId);
+        BackupRequestMessage msg = new BackupRequestMessage(
+                new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()),
+                new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port),
+                replicaId,
+                true);
 
         CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
 
         this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId);
+        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId.getHash());
         ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
         ChordMessage backupRequestResponse = request.get();
@@ -534,6 +538,10 @@ public class Node implements Chord{
             ConsoleLogger.log(Level.SEVERE, "No peer had enough space to store file!");
 
             ret.completeExceptionally(new NoSpaceException());
+        } else if(backupRequestResponse instanceof BackupConfirmMessage){
+            ret.complete(new NodeInfo(((NodeInfoMessage)backupRequestResponse).getNode()));
+        } else{
+            ret.completeExceptionally(new Exception("Received non-supported message answering to backup request"));
         }
 
         return ret;
@@ -549,7 +557,7 @@ public class Node implements Chord{
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
+        if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id) && request.isOriginalRequest() == false){
             this.communicator.send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
                     new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
 

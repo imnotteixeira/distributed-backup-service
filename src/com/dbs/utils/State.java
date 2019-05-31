@@ -84,6 +84,10 @@ public class  State implements Serializable {
         throw new NoSpaceException();
     }
 
+    public synchronized void setReplicaLocation(ReplicaIdentifier replicaId, SimpleNodeInfo location) {
+        replicasLocation.put(replicaId, location);
+    }
+
     public boolean hasFile(FileIdentifier id) {
         return this.localReplicas.keySet().contains(id);
     }
