@@ -8,6 +8,7 @@ import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 import com.dbs.utils.Network;
+import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -86,14 +87,20 @@ public class BackupManager implements BackupService {
         return retMsg.toString();
     }
 
-    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(ReplicaIdentifier[] fileIds, byte[] fileContent) {
+    private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(ReplicaIdentifier[] replicaIds, byte[] fileContent) {
 
-        ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(fileIds.length);
+        ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(replicaIds.length);
 
-        for (int i = 0; i < fileIds.length; i++) {
+        for (int i = 0; i < replicaIds.length; i++) {
             try {
-                CompletableFuture<NodeInfo> currRequest = this.node.requestBackup(fileIds[i], fileContent);
-                futures.add(i,currRequest);
+                if(this.node.getState().hasReplicaLocation(replicaIds[i])){
+                    CompletableFuture<NodeInfo> future = new CompletableFuture<>();
+                    future.complete(new NodeInfo(this.node.getState().getReplicasLocation().get(replicaIds[i])));
+                    futures.add(i, future);
+                }else {
+                    CompletableFuture<NodeInfo> currRequest = this.node.requestBackup(replicaIds[i], fileContent);
+                    futures.add(currRequest);
+                }
             } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
                 //continue
             }
