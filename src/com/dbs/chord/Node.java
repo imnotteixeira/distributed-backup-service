@@ -1,6 +1,7 @@
 package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
+import com.dbs.backup.NoSpaceException;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
@@ -532,9 +533,8 @@ public class Node implements Chord{
 
             ConsoleLogger.log(Level.SEVERE, "No peer had enough space to store file!");
 
-            ret.complete(new NullNodeInfo());
+            ret.completeExceptionally(new NoSpaceException());
         }
-
 
         return ret;
     }
@@ -542,7 +542,6 @@ public class Node implements Chord{
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
-
             this.communicator.send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
                     new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
 

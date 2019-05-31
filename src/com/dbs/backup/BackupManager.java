@@ -7,6 +7,7 @@ import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -69,34 +70,36 @@ public class BackupManager implements BackupService {
         ArrayList<CompletableFuture<NodeInfo>> futures = initBackupOperation(replicaIds, fileContent);
 
         // Wait until they are all done
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
 
         StringBuilder retMsg = new StringBuilder();
 
 
-        for (CompletableFuture<NodeInfo> future : futures) {
+        for (int i = 0; i < futures.size(); i++) {
 
-            if(future.isDone()) {
-                BigInteger id = null;
-                try {
-                    System.out.println(future.get().getClass());
+            CompletableFuture<NodeInfo> future = futures.get(i);
 
-                    id = future.get().id;
-                } catch (InterruptedException | ExecutionException e) {
+            try {
+
+                BigInteger id = future.get().id;
+
+                retMsg.append("Successfully saved replica " + i + " in node " + id + ".\n");
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                continue;
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof NoSpaceException) {
+                    retMsg.append("Could not store replica " + i + " of file. Not enough space in any peer.\n");
+                } else {
                     e.printStackTrace();
                 }
-                if(future.isCompletedExceptionally()) {
-                    retMsg.append("Tried to save replica in node " + id + " but could not.\n");
-                } else {
-
-                    retMsg.append("Successfully saved replica in node " + id + ".\n");
-                }
+                continue;
             }
 
         }
 
 
-        return "File Backed Up in "+ futures.size() + " nodes!\n" + retMsg.toString();
+        return retMsg.toString();
     }
 
     private ArrayList<CompletableFuture<NodeInfo>> initBackupOperation(ReplicaIdentifier[] fileIds, byte[] fileContent) {
