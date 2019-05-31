@@ -557,7 +557,7 @@ public class Node implements Chord{
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id)){
+        if(new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id) && request.isOriginalRequest() == false){
             this.communicator.send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
                     new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
 
