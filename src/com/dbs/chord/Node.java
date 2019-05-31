@@ -35,7 +35,6 @@ import static java.util.logging.Level.SEVERE;
 
 public class Node implements Chord {
 
-    public static final int MAX_FILE_SIZE_BYTES = (int) (64 * 10e6);
     public static final int REPLICATION_DEGREE = 3;
     public static final int INITIAL_SPACE_LIMIT_BYTES = (int) (600 * 10e3);
     public static final int REQUEST_TIMEOUT_MS = 5000;
@@ -597,6 +596,9 @@ public class Node implements Chord {
     }
 
     public CompletableFuture<NodeInfo> requestRestore(ReplicaIdentifier replicaId) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+
+        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
+
         SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
         tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
@@ -615,12 +617,15 @@ public class Node implements Chord {
 
         ChordMessage restoreRequestResponse = request.get();
 
+        if(restoreRequestResponse instanceof NotFoundMessage){
+            ret.completeExceptionally(new Exception("Could not find file to restore!"));
+            return ret;
+        }
+
         if (restoreRequestResponse instanceof RestorePayloadMessage) {
             RestorePayloadMessage message = (RestorePayloadMessage) restoreRequestResponse;
             storeRestorePayload(message);
         }
-
-        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
 
         ret.complete(new NodeInfo(((RestorePayloadMessage) restoreRequestResponse).getOriginNode()));
 
@@ -688,9 +693,15 @@ public class Node implements Chord {
 
             this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-            DeleteConfirmationMessage response = (DeleteConfirmationMessage) future.get();
+            ChordMessage response = future.get();
 
-            result.complete(new NodeInfo(response.getNode()));
+
+            if(response instanceof NotFoundMessage){
+                result.completeExceptionally(new Exception("Could not find file to delete!"));
+                return result;
+            }
+
+            result.complete(new NodeInfo(((DeleteConfirmationMessage) response).getNode()));
 
         } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
             result.completeExceptionally(new Exception("Could not delete file. Maybe it is not in the network"));

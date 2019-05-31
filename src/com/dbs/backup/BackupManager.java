@@ -211,7 +211,7 @@ public class BackupManager implements BackupService {
                         NodeInfo res = this.node.requestRestore(r).get();
                         return "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port;
                     } catch (ExecutionException | InterruptedException e) {
-                        e.printStackTrace();
+                        ConsoleLogger.log(Level.SEVERE, e.getMessage());
                     }
                 }
             }
@@ -243,7 +243,7 @@ public class BackupManager implements BackupService {
                     NodeInfo result = future.get();
                     retMsg.append("Successfully deleted replica " + i + " with hash " + replicaIds[i].getHash() + " that was in node " + result.id + "\n");
                 } catch (InterruptedException | ExecutionException e) {
-                    continue;
+                    retMsg.append("Could not delete replica " + i + " with hash " + replicaIds[i].getHash() + "\n");
                 }
             }
 

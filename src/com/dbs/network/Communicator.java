@@ -3,10 +3,7 @@ package com.dbs.network;
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
-import com.dbs.network.messages.BackupResponseMessage;
-import com.dbs.network.messages.ChordMessage;
-import com.dbs.network.messages.FindSuccessorMessage;
-import com.dbs.network.messages.NodeInfoMessage;
+import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 
 import javax.net.ssl.SSLServerSocket;
@@ -96,7 +93,8 @@ public class Communicator {
                 ObjectInputStream in = new ObjectInputStream(s.getInputStream());
                 Object o = in.readObject();
                 return ChordMessage.fromObject(o);
-
+            } catch (SocketTimeoutException e) {
+                return new NotFoundMessage();
             } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             }
