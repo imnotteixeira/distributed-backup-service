@@ -1,9 +1,7 @@
 package com.dbs.network.messages;
 
 import com.dbs.chord.Node;
-import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
-import com.dbs.chord.operations.SuccessorRequestOperationEntry;
 
 import java.math.BigInteger;
 

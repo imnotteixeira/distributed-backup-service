@@ -32,6 +32,7 @@ public class DistributedBackupServiceAdapter implements IDistributedBackupServic
 
     @Override
     public String backup(String file, int repDegree) throws RemoteException {
+        file = "testfiles/" + file;
         return node.getBackupManager().backup(file, repDegree);
     }
 
@@ -42,11 +43,13 @@ public class DistributedBackupServiceAdapter implements IDistributedBackupServic
 
     @Override
     public String restore(String file) throws RemoteException {
+        file = "testfiles/" + file;
         return node.getRestoreManager().restore(file);
     }
 
     @Override
     public String delete(String file) throws RemoteException {
+        file = "testfiles/" + file;
         return node.getDeleteManager().delete(file);
     }
 

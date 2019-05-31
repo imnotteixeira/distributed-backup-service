@@ -46,7 +46,6 @@ public class BackupManager {
     public String backup(String file, int repDegree) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting backup");
 
-
         // Waits for *all* futures to complete and returns a list of results.
         // If *any* future completes exceptionally then the resulting future will also complete exceptionally.
 
