@@ -709,4 +709,8 @@ public class Node implements Chord {
 
         return result;
     }
+
+    public void updateReplicaLocation(ReplicaIdentifier replicaId, SimpleNodeInfo node) {
+        this.getState().setReplicaLocation(replicaId, node);
+    }
 }
