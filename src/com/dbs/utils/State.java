@@ -11,7 +11,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class State implements Serializable {
+public class  State implements Serializable {
 
     private int maxSpace;
 

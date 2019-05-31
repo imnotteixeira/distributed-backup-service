@@ -56,7 +56,8 @@ public abstract class ChordMessage implements Serializable {
         BACKUP_CONFIRM,
         BACKUP_ACK,
         BACKUP_NACK,
-        BACKUP_PAYLOAD
+        BACKUP_PAYLOAD,
+        RESTORE_REQUEST
     }
 
     private MESSAGE_TYPE type;

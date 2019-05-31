@@ -18,7 +18,7 @@ public class TestApp {
                     System.out.println(peer.backup("asd.asd"));
                     break;
                 case "RESTORE":
-                    System.out.println(peer.restore("file"));
+                    System.out.println(peer.restore("asd.asd"));
                     break;
                 case "DELETE":
                     System.out.println(peer.delete("file"));

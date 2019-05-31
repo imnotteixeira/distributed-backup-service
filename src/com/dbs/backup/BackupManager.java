@@ -154,6 +154,25 @@ public class BackupManager implements BackupService {
     @Override
     public String restore(String file) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting restore");
+
+        try {
+            FileIdentifier fileId = FileIdentifier.fromPath(file);
+            if (this.node.getState().hasFile(fileId)) {
+                ConsoleLogger.log(SEVERE, "I have the file.");
+                // get the file
+            } else {
+                ReplicaIdentifier[] replicaIds;
+                replicaIds = FileManager.generateReplicaIds(fileId, Node.REPLICATION_DEGREE);
+                for (ReplicaIdentifier r: replicaIds) {
+                    NodeInfo res = this.node.requestRestore(r).get();
+                    ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node " + res.getAccessPoint());
+                    break;
+                }
+            }
+        } catch (IOException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+
         return null;
     }
 

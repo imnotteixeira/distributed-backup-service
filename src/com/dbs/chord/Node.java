@@ -581,4 +581,45 @@ public class Node implements Chord{
     }
 
 
+    public CompletableFuture<NodeInfo> requestRestore(ReplicaIdentifier replicaId) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        SSLServerSocket tempSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+        RestoreRequestMessage msg = new RestoreRequestMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), replicaId);
+
+        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
+
+        CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
+
+        this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
+
+        ConsoleLogger.log(Level.SEVERE, "I want to restore file with key " + replicaId);
+        ConsoleLogger.log(Level.SEVERE, "Sent restore request for node at " + targetNode.address + ":" + targetNode.port);
+
+        ChordMessage restoreRequestResponse = request.get();
+
+        if (restoreRequestResponse instanceof RestorePayloadMessage) {
+            RestorePayloadMessage message = (RestorePayloadMessage) restoreRequestResponse;
+            storeRestorePayload(message);
+        }
+
+        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
+
+        ret.complete(new NodeInfo(((RestorePayloadMessage) restoreRequestResponse).getOriginNode()));
+
+        return ret;
+    }
+
+    private void storeRestorePayload(RestorePayloadMessage message) throws IOException, ExecutionException, InterruptedException {
+
+        Path directory = FileManager.createDirectory("restored", Node.NODE_PATH);
+
+        FileManager.writeToFile(directory.resolve(message.getReplicaId().getHash().toString()).toString(), message.getData());
+
+        //BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), backupPayloadMessage.getReplicaId());
+
+        //System.out.println("answering to "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " - thanks for the file!");
+        //this.communicator.send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
+
+    }
 }
