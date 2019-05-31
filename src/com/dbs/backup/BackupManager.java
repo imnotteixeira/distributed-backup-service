@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 
 import static com.dbs.chord.Node.REQUEST_TIMEOUT_MS;
+import static com.dbs.chord.Utils.between;
 import static java.util.logging.Level.*;
 
 public class BackupManager implements BackupService {
@@ -176,21 +177,17 @@ public class BackupManager implements BackupService {
     public void redistributeEligibleReplicas(NodeInfo otherNode) {
 
         this.node.getState().getReplicasLocation().forEach((replica, location) -> {
-            if(replica.hash.compareTo(otherNode.id) < 0) {
+            if(between(replica.hash, this.node.getNodeInfo().id, otherNode.id)) {
                 try {
-                    this.node.requestBackup(
-                            replica,
-                            FileManager.readFromFile(
-                                    Paths.get(
-                                            Node.NODE_PATH,
-                                            "backup",
-                                            String.valueOf(replica.getFileId().hashCode())).toString()
-                            ),
-                            new NodeInfo(location)
-                    );
+                    ConsoleLogger.log(Level.SEVERE, "Sending replica " + replica.getHash() + " to new predecessor " + otherNode.id);
 
+                    UpdateReplicaLocationMessage updateReplicaLocationInPredecessorMsg = new UpdateReplicaLocationMessage(replica, location);
 
-                } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
+                    this.node.getCommunicator().send(Utils.createClientSocket(otherNode.address, otherNode.port), updateReplicaLocationInPredecessorMsg);
+
+                    this.node.getState().removeReplicaLocation(replica);
+
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
 
