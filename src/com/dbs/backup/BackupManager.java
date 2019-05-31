@@ -7,8 +7,9 @@ import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
-import com.sun.xml.internal.ws.util.CompletedFuture;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -22,7 +23,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import static com.dbs.chord.Utils.between;
+import static com.dbs.chord.Node.REQUEST_TIMEOUT_MS;
 import static java.util.logging.Level.*;
 
 public class BackupManager implements BackupService {
@@ -134,7 +135,7 @@ public class BackupManager implements BackupService {
         return this.node.getState().hasSpace(fileSize);
     }
 
-    public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
+    public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         try {
             BackupResponseMessage msg;
@@ -147,13 +148,36 @@ public class BackupManager implements BackupService {
                 msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }
 
+            this.node.getState().setReplicaLocation(request.getReplicaId(), new SimpleNodeInfo(this.node.getNodeInfo()));
             System.out.println("Sending the above response to " + request.getResponseSocketInfo().address + ":" + request.getResponseSocketInfo().port);
             this.node.getCommunicator().send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port), msg);
         } catch (NoSpaceException e) {
 
-            BackupRequestMessage msg = new BackupRequestMessage(request.getResponseSocketInfo(), request.getOriginNode(), request.getReplicaId());
+            if(request.isOriginalRequest()){
 
-            this.node.getCommunicator().send(Utils.createClientSocket(this.node.getSuccessor().address, this.node.getSuccessor().port), msg);
+                SSLServerSocket successorRequestSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+                successorRequestSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+                BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.node.getNodeInfo().address, successorRequestSocket.getLocalPort()), new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId(), false);
+
+                CompletableFuture<ChordMessage> requestSuccessor = this.node.getCommunicator().async_listenOnSocket(successorRequestSocket);
+
+                this.node.getCommunicator().send(Utils.createClientSocket(this.node.getSuccessor().address, this.node.getSuccessor().port), msg);
+
+                ChordMessage successorResponse = requestSuccessor.get();
+
+                if(successorResponse instanceof BackupConfirmMessage || successorResponse instanceof BackupACKMessage){
+                    this.node.getState().setReplicaLocation(request.getReplicaId(), ((NodeInfoMessage) successorResponse).getNode());
+                }
+
+                this.node.getCommunicator().send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port), successorResponse);
+
+            }else {
+                BackupRequestMessage msg = new BackupRequestMessage(request.getResponseSocketInfo(), request.getOriginNode(), request.getReplicaId(), false);
+                this.node.getCommunicator().send(Utils.createClientSocket(this.node.getSuccessor().address, this.node.getSuccessor().port), msg);
+            }
+
+
         }
     }
 

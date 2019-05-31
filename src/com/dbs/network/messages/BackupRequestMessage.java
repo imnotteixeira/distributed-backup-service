@@ -16,10 +16,13 @@ public class BackupRequestMessage extends ChordMessage{
 
     private final ReplicaIdentifier replicaId;
 
-    public BackupRequestMessage(SimpleNodeInfo responseSocketInfo, SimpleNodeInfo originNode, ReplicaIdentifier replicaId) {
+    private final boolean isOriginalRequest;
+
+    public BackupRequestMessage(SimpleNodeInfo responseSocketInfo, SimpleNodeInfo originNode, ReplicaIdentifier replicaId, boolean isOriginalRequest) {
         super(MESSAGE_TYPE.BACKUP_REQUEST);
         this.responseSocketInfo = responseSocketInfo;
         this.originNode = originNode;
+        this.isOriginalRequest = isOriginalRequest;
 
         this.replicaId = replicaId;
     }
@@ -40,5 +43,9 @@ public class BackupRequestMessage extends ChordMessage{
 
     public SimpleNodeInfo getOriginNode() {
         return originNode;
+    }
+
+    public boolean isOriginalRequest() {
+        return isOriginalRequest;
     }
 }
