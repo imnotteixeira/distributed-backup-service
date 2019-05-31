@@ -1,16 +1,14 @@
 package com.dbs.chord;
 
-import com.dbs.backup.BackupManager;
-import com.dbs.backup.FileIdentifier;
-import com.dbs.backup.NoSpaceException;
-import com.dbs.backup.ReplicaIdentifier;
-import com.dbs.chord.operations.OperationEntry;
-import com.dbs.chord.operations.PredecessorRequestOperationEntry;
-import com.dbs.chord.operations.SuccessorRequestOperationEntry;
-import com.dbs.filemanager.FileManager;
+import com.dbs.protocols.DistributedBackupServiceAdapter;
+import com.dbs.protocols.backup.BackupManager;
+import com.dbs.protocols.backup.ReplicaIdentifier;
 import com.dbs.network.Communicator;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.messages.*;
+import com.dbs.protocols.delete.DeleteManager;
+import com.dbs.protocols.reclaim.ReclaimManager;
+import com.dbs.protocols.restore.RestoreManager;
 import com.dbs.utils.ConsoleLogger;
 import com.dbs.utils.Network;
 import com.dbs.utils.State;
@@ -22,14 +20,12 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
 
 import static com.dbs.chord.Utils.between;
-import static com.dbs.chord.Utils.createClientSocket;
 import static java.util.logging.Level.SEVERE;
 
 public class Node implements Chord {
@@ -42,13 +38,16 @@ public class Node implements Chord {
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
     public static String NODE_PATH;
 
+    private DistributedBackupServiceAdapter dbsAdapter;
+
     private BackupManager backupManager;
+    private RestoreManager restoreManager;
+    private DeleteManager deleteManager;
+    private ReclaimManager reclaimManager;
 
 
     private ScheduledExecutorService threadPool;
     private Communicator communicator;
-
-    private ConcurrentHashMap<OperationEntry, Future<NodeInfo>> ongoingOperations;
 
     private ConcurrentSkipListMap<Integer, NodeInfo> fingerTable;
 
@@ -94,12 +93,18 @@ public class Node implements Chord {
 
         Node.NODE_PATH = nodeAP;
 
+
         this.backupManager = new BackupManager(this);
+        this.restoreManager = new RestoreManager(this);
+        this.deleteManager = new DeleteManager(this);
+        this.reclaimManager = new ReclaimManager(this);
+
+        this.dbsAdapter = new DistributedBackupServiceAdapter(this);
+
 
         this.threadPool = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
         this.fingerTable = new ConcurrentSkipListMap<>();
-        this.ongoingOperations = new ConcurrentHashMap<>();
 
         this.state = new State();
 
@@ -185,9 +190,6 @@ public class Node implements Chord {
 
         Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
         this.communicator.send(targetSocket, msg);
-
-
-        this.ongoingOperations.put(new SuccessorRequestOperationEntry(key), request);
 
         return request.get();
     }
@@ -370,8 +372,6 @@ public class Node implements Chord {
 
         this.communicator.send(Utils.createClientSocket(node.address, node.port), msg);
 
-        this.ongoingOperations.put(new PredecessorRequestOperationEntry(new SimpleNodeInfo(node)), request);
-
         return request.get();
     }
 
@@ -417,17 +417,6 @@ public class Node implements Chord {
 
     }
 
-    public void concludeOperation(OperationEntry operation) {
-
-        if (this.ongoingOperations.containsKey(operation)) {
-            Future operationFuture = this.ongoingOperations.get(operation);
-            if (!operationFuture.isDone()) {
-                operationFuture.cancel(true);
-            }
-            this.ongoingOperations.remove(operation);
-        }
-    }
-
     private void bootstrapStabilizer() {
         this.threadPool.scheduleWithFixedDelay(() -> {
             try {
@@ -466,87 +455,52 @@ public class Node implements Chord {
         return this.nodeInfo;
     }
 
-    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent, NodeInfo targetNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        SSLServerSocket tempSocket = Network.createServerSocket(0);
-        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
-
-        BackupRequestMessage msg = new BackupRequestMessage(
-                new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()),
-                new SimpleNodeInfo(this.nodeInfo.address, this.nodeInfo.port),
-                replicaId,
-                true);
-
-        CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
-
-        this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
-
-        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId.getHash());
-        ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
-
-
-        ChordMessage backupRequestResponse = request.get();
-
-        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
-
-
-        if (backupRequestResponse instanceof BackupACKMessage) {
-            SimpleNodeInfo payloadTarget = ((NodeInfoMessage) backupRequestResponse).getNode();
-
-            SSLServerSocket payloadResponseSocket = Network.createServerSocket(0);
-            payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
-
-            BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.nodeInfo.address, payloadResponseSocket.getLocalPort()), replicaId, fileContent);
-
-            CompletableFuture<ChordMessage> payloadResponse = this.communicator.async_listenOnSocket(payloadResponseSocket);
-
-            this.communicator.send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
-
-            ChordMessage payloadResponseMessage = payloadResponse.get();
-
-
-            if (payloadResponseMessage instanceof BackupNACKMessage) {
-                ConsoleLogger.log(SEVERE, "Failed to store replica of file!");
-                ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
-            } else if (payloadResponseMessage instanceof BackupConfirmMessage) {
-                ret.complete(new NodeInfo(((NodeInfoMessage) payloadResponseMessage).getNode()));
-            }
-        } else if (backupRequestResponse instanceof BackupNACKMessage) {
-
-            ConsoleLogger.log(SEVERE, "No peer had enough space to store file!");
-
-            ret.completeExceptionally(new NoSpaceException());
-        } else if (backupRequestResponse instanceof BackupConfirmMessage) {
-            ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
-        } else {
-            ret.completeExceptionally(new Exception("Received non-supported message answering to backup request"));
-        }
-
-        return ret;
-
-    }
-
     public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
-
-        return requestBackup(replicaId, fileContent, targetNode);
+        return this.backupManager.requestBackup(replicaId, fileContent);
     }
 
     public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-
-        if (new NodeInfo(request.getOriginNode()).id.equals(this.nodeInfo.id) && request.isOriginalRequest() == false) {
-            this.communicator.send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
-                    new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
-
-            return;
-        }
-
-
-        this.backupManager.checkStoreReplica(request);
-
+        this.backupManager.handleBackupRequest(request);
     }
 
     public void handleBackupPayload(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
         this.backupManager.storeReplica(backupPayloadMessage);
+    }
+
+    public CompletableFuture<NodeInfo> requestRestore(ReplicaIdentifier replicaId) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        return this.restoreManager.requestRestore(replicaId);
+    }
+
+    public void handleRestoreRequest(RestoreRequestMessage message) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
+        this.restoreManager.handleRestoreRequest(message);
+    }
+
+    public void handleReplicaDeletion(DeleteReplicaMessage deleteReplicaMessage) {
+        this.deleteManager.deleteReplica(deleteReplicaMessage);
+    }
+
+    public CompletableFuture<NodeInfo> delete(ReplicaIdentifier replicaId) {
+        return this.deleteManager.deleteReplica(replicaId);
+    }
+
+    public void updateReplicaLocation(ReplicaIdentifier replicaId, SimpleNodeInfo node) {
+        this.getState().setReplicaLocation(replicaId, node);
+    }
+
+    public BackupManager getBackupManager() {
+        return this.backupManager;
+    }
+
+    public DeleteManager getDeleteManager() {
+        return deleteManager;
+    }
+
+    public ReclaimManager getReclaimManager() {
+        return reclaimManager;
+    }
+
+    public RestoreManager getRestoreManager() {
+        return this.restoreManager;
     }
 
     public State getState() {
@@ -576,122 +530,5 @@ public class Node implements Chord {
         ConsoleLogger.log(SEVERE, "My successor is now " + successor.id);
     }
 
-    public CompletableFuture<NodeInfo> requestRestore(ReplicaIdentifier replicaId) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
-
-        SSLServerSocket tempSocket = Network.createServerSocket(0);
-        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
-
-        SimpleNodeInfo thisNode = new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort());
-
-        RestoreRequestMessage msg = new RestoreRequestMessage(thisNode, thisNode, replicaId);
-
-        NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
-
-        CompletableFuture<ChordMessage> request = this.communicator.async_listenOnSocket(tempSocket);
-
-        this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
-
-        ConsoleLogger.log(SEVERE, "I want to restore file with key " + replicaId);
-        ConsoleLogger.log(SEVERE, "Sent restore request for node at " + targetNode.address + ":" + targetNode.port);
-
-        ChordMessage restoreRequestResponse = request.get();
-
-        if(restoreRequestResponse instanceof NotFoundMessage){
-            ret.completeExceptionally(new Exception("Could not find file to restore!"));
-            return ret;
-        }
-
-        if (restoreRequestResponse instanceof RestorePayloadMessage) {
-            RestorePayloadMessage message = (RestorePayloadMessage) restoreRequestResponse;
-            storeRestorePayload(message);
-        }
-
-        ret.complete(new NodeInfo(((RestorePayloadMessage) restoreRequestResponse).getOriginNode()));
-
-        return ret;
-    }
-
-    private void storeRestorePayload(RestorePayloadMessage message) throws IOException, ExecutionException, InterruptedException {
-
-        Path directory = FileManager.getOrCreateDirectory("restored", Node.NODE_PATH);
-
-        String fileName = String.valueOf(message.getReplicaId().getFileId().getFileName());
-
-        FileManager.writeToFile(directory.resolve(fileName).toString(), message.getData());
-
-
-    }
-
-    public void handleRestoreRequest(RestoreRequestMessage message) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
-        ConsoleLogger.log(SEVERE, "Received restore request");
-        final ReplicaIdentifier replicaId = message.getReplicaId();
-        if (this.state.hasReplica(replicaId)) {
-            ConsoleLogger.log(SEVERE, "I have the file");
-            String fileName = String.valueOf(replicaId.getFileId().hashCode());
-            Path directory = FileManager.getOrCreateDirectory("backup", NODE_PATH);
-            byte[] data = FileManager.readFromFile(directory.resolve(fileName).toString());
-            this.communicator.send(createClientSocket(message.getRequestSocketInfo().address, message.getRequestSocketInfo().port),
-                    new RestorePayloadMessage(new SimpleNodeInfo(this.getNodeInfo()), replicaId, data));
-            ConsoleLogger.log(SEVERE, "Sent it over");
-        } else {
-            ConsoleLogger.log(SEVERE, "I know where the file is");
-            SimpleNodeInfo replicaLocation = this.state.getReplicaLocation(replicaId);
-            if (replicaLocation != null) {
-                RestoreRequestMessage msg = new RestoreRequestMessage(message.getRequestSocketInfo(), new SimpleNodeInfo(this.nodeInfo), message.getReplicaId());
-                this.communicator.send(Utils.createClientSocket(replicaLocation.address, replicaLocation.port), msg);
-            }
-        }
-    }
-
-    public void restoreFromOwnStorage(FileIdentifier fileId) throws IOException, ExecutionException, InterruptedException {
-        Path directory = FileManager.getOrCreateDirectory("backup", NODE_PATH);
-        String fileName = String.valueOf(fileId.hashCode());
-        byte[] data = FileManager.readFromFile(directory.resolve(fileName).toString());
-        directory = FileManager.getOrCreateDirectory("restored", NODE_PATH);
-        FileManager.writeToFile(directory.resolve(fileId.getFileName()).toString(), data);
-    }
-
-    public void handleReplicaDeletion(DeleteReplicaMessage deleteReplicaMessage) {
-        this.backupManager.deleteReplica(deleteReplicaMessage);
-    }
-
-    public CompletableFuture<NodeInfo> delete(ReplicaIdentifier replicaId) {
-
-        CompletableFuture<NodeInfo> result = new CompletableFuture<NodeInfo>();
-
-        try {
-
-            SSLServerSocket tempSocket = Network.createServerSocket(0);
-            tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
-
-            NodeInfo targetNode = this.findSuccessor(replicaId.getHash());
-
-            CompletableFuture<ChordMessage> future = this.communicator.async_listenOnSocket(tempSocket);
-
-            DeleteReplicaMessage msg = new DeleteReplicaMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), replicaId);
-
-            this.communicator.send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
-
-            ChordMessage response = future.get();
-
-
-            if(response instanceof NotFoundMessage){
-                result.completeExceptionally(new Exception("Could not find file to delete!"));
-                return result;
-            }
-
-            result.complete(new NodeInfo(((DeleteConfirmationMessage) response).getNode()));
-
-        } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
-            result.completeExceptionally(new Exception("Could not delete file. Maybe it is not in the network"));
-        }
-
-        return result;
-    }
-
-    public void updateReplicaLocation(ReplicaIdentifier replicaId, SimpleNodeInfo node) {
-        this.getState().setReplicaLocation(replicaId, node);
-    }
 }

@@ -1,4 +1,4 @@
-package com.dbs.backup;
+package com.dbs.protocols.backup;
 
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
@@ -21,6 +21,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -30,7 +31,7 @@ import static com.dbs.chord.Node.REQUEST_TIMEOUT_MS;
 import static com.dbs.chord.Utils.between;
 import static java.util.logging.Level.*;
 
-public class BackupManager implements BackupService {
+public class BackupManager {
 
     private final Node node;
 
@@ -39,22 +40,9 @@ public class BackupManager implements BackupService {
     public BackupManager(Node node) {
         this.node = node;
         this.desiredFileRepDegree = new ConcurrentHashMap<>();
-        BackupService service = null;
-        try {
-            service = (BackupService) UnicastRemoteObject.exportObject(this, 0);
-            LocateRegistry.getRegistry().rebind(this.node.getNodeInfo().getAccessPoint(), service);
-            ConsoleLogger.log(WARNING, "Found existing RMI registry");
-        } catch (Exception e) {
-            try {
-                LocateRegistry.createRegistry(1099).rebind(this.node.getNodeInfo().getAccessPoint(), service);
-                ConsoleLogger.log(WARNING, "Created new RMI registry");
-            } catch (Exception exc) {
-                exc.printStackTrace();
-            }
-        }
+
     }
 
-    @Override
     public String backup(String file, int repDegree) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting backup");
 
@@ -195,139 +183,13 @@ public class BackupManager implements BackupService {
         });
     }
 
-
-    @Override
-    public String restore(String file) throws RemoteException {
-        ConsoleLogger.log(INFO,"Starting restore");
-        try {
-            FileIdentifier fileId = FileIdentifier.fromPath(file);
-            if (this.desiredFileRepDegree.get(fileId) == null) {
-                ConsoleLogger.log(SEVERE, "File is not backed up");
-                return "File is not backed up";
-            }
-            if (this.node.getState().hasFile(fileId)) {
-                ConsoleLogger.log(SEVERE, "I have the file.");
-                this.node.restoreFromOwnStorage(fileId);
-                return "Restored from own storage";
-            } else {
-                ReplicaIdentifier[] replicaIds;
-                replicaIds = FileManager.generateReplicaIds(fileId, this.desiredFileRepDegree.get(fileId));
-                for (ReplicaIdentifier r: replicaIds) {
-                    try {
-                        NodeInfo res = this.node.requestRestore(r).get();
-                        return "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port;
-                    } catch (ExecutionException | InterruptedException e) {
-                        ConsoleLogger.log(Level.SEVERE, e.getMessage());
-                    }
-                }
-            }
-        } catch (IOException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-        }
-
-        return "Failed to restore file.";
-    }
-
-    @Override
-    public String delete(String file) throws RemoteException {
-
-        StringBuilder retMsg = new StringBuilder();
-
-        try {
-            FileIdentifier fileId = FileIdentifier.fromPath(file);
-
-
-            if (this.desiredFileRepDegree.get(fileId) == null) {
-                return "File is not backed up";
-            }
-
-            ReplicaIdentifier[] replicaIds = FileManager.generateReplicaIds(fileId, this.desiredFileRepDegree.get(fileId));
-
-            ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>();
-
-            for(ReplicaIdentifier replicaId : replicaIds){
-                futures.add(this.node.delete(replicaId));
-            }
-
-            for(int i = 0; i < futures.size(); i++){
-                CompletableFuture<NodeInfo> future = futures.get(i);
-
-                try{
-                    NodeInfo result = future.get();
-                    retMsg.append("Successfully deleted replica " + i + " with hash " + replicaIds[i].getHash() + " that was in node " + result.id + "\n");
-                } catch (InterruptedException | ExecutionException e) {
-                    retMsg.append("Could not delete replica " + i + " with hash " + replicaIds[i].getHash() + "\n");
-                }
-            }
-
-            this.desiredFileRepDegree.computeIfPresent(fileId, (k, _v) -> this.desiredFileRepDegree.remove(k));
-
-        } catch (IOException | NoSuchAlgorithmException e) {
-            return "Failed to generate replica ids";
-        }
-
-
-        return retMsg.toString();
-    }
-
-    @Override
     public String state() throws RemoteException {
         return this.node.getState().toString();
     }
 
-    @Override
-    public String reclaim(int newSizeBytes) throws RemoteException {
-        StringBuilder retMsg = new StringBuilder();
 
-        ArrayList<ReplicaIdentifier> replicasToDelete = this.node.getState().freeSpace(newSizeBytes);
 
-        ConsoleLogger.log(Level.SEVERE, "Number of replicas to delete: " + Integer.toString(replicasToDelete.size()));
-
-        HashMap<FileIdentifier, byte[]> filesToDelete = new HashMap<>();
-
-        for(ReplicaIdentifier replica : replicasToDelete){
-            if(!filesToDelete.containsKey(replica.getFileId())){
-                try {
-                    filesToDelete.put(replica.getFileId(),
-                            FileManager.readFromFile(Paths.get(
-                                    Node.NODE_PATH,
-                                    "backup",
-                                    String.valueOf(replica.getFileId().hashCode())).toString()));
-                } catch (ExecutionException | InterruptedException | FileNotFoundException e) {
-                    return "Could not find file " + replica.getFileId().fileName + " with hash " + replica.getFileId().hashCode();
-                }
-            }
-        }
-
-        for(FileIdentifier file : filesToDelete.keySet()){
-            try {
-                FileManager.deleteFile(Paths.get(
-                        Node.NODE_PATH,
-                        "backup",
-                        String.valueOf(file.hashCode())).toString());
-            } catch (IOException e) {
-                return "Could not delete file " + file.fileName + " with hash " + file.hashCode();
-            }
-        }
-
-        ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>(replicasToDelete.size());
-
-        for(ReplicaIdentifier replica : replicasToDelete){
-            try {
-                CompletableFuture<NodeInfo> future = this.node.requestBackup(replica, filesToDelete.get(replica.getFileId()));
-                futures.add(future);
-            } catch (IOException | NoSuchAlgorithmException | ExecutionException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        handleBackupFutures(retMsg, futures);
-
-        return retMsg.toString();
-
-    }
-
-    private void handleBackupFutures(StringBuilder retMsg, ArrayList<CompletableFuture<NodeInfo>> futures) {
+    public void handleBackupFutures(StringBuilder retMsg, ArrayList<CompletableFuture<NodeInfo>> futures) {
         for (int i = 0; i < futures.size(); i++) {
 
             CompletableFuture<NodeInfo> future = futures.get(i);
@@ -354,35 +216,87 @@ public class BackupManager implements BackupService {
     }
 
 
-    public synchronized void deleteReplica(DeleteReplicaMessage msg) {
-        try {
-            if(this.node.getState().deleteReplica(msg.getReplicaId())){
 
-                if(!this.node.getState().hasFileReplicas(msg.getReplicaId().getFileId())) {
-                    FileManager.deleteFile(Paths.get(
-                            Node.NODE_PATH,
-                            "backup",
-                            String.valueOf(msg.getReplicaId().getFileId().hashCode())).toString());
-                }
 
-                DeleteConfirmationMessage confirmation = new DeleteConfirmationMessage(new SimpleNodeInfo(this.node.getNodeInfo()));
+    public Integer getDesiredFileRepDegreeOfFile(FileIdentifier fileId) {
+        return this.desiredFileRepDegree.get(fileId);
+    }
 
-                this.node.getState().removeReplicaLocation(msg.getReplicaId());
+    public ConcurrentHashMap<FileIdentifier, Integer> getDesiredFileRepDegrees() {
+        return this.desiredFileRepDegree;
+    }
 
-                this.node.getCommunicator().send(Utils.createClientSocket(msg.getNode().address, msg.getNode().port), confirmation);
+    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent, NodeInfo targetNode) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        SSLServerSocket tempSocket = Network.createServerSocket(0);
+        tempSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
-            }else if(this.node.getState().hasReplicaLocation(msg.getReplicaId())){
-                SimpleNodeInfo targetNode = this.node.getState().getReplicasLocation().get(msg.getReplicaId());
+        BackupRequestMessage msg = new BackupRequestMessage(
+                new SimpleNodeInfo(this.node.getNodeInfo().address, tempSocket.getLocalPort()),
+                new SimpleNodeInfo(this.node.getNodeInfo().address, this.node.getNodeInfo().port),
+                replicaId,
+                true);
 
-                DeleteReplicaMessage nextMsg = new DeleteReplicaMessage(msg.getNode(), msg.getReplicaId());
+        CompletableFuture<ChordMessage> request = this.node.getCommunicator().async_listenOnSocket(tempSocket);
 
-                this.node.getCommunicator().send(Utils.createClientSocket(targetNode.address, targetNode.port), nextMsg);
+        this.node.getCommunicator().send(Utils.createClientSocket(targetNode.address, targetNode.port), msg);
 
-                this.node.getState().removeReplicaLocation(msg.getReplicaId());
+        ConsoleLogger.log(Level.SEVERE, "I want to save file with key " + replicaId.getHash());
+        ConsoleLogger.log(Level.SEVERE, "Sent backup request for node at " + targetNode.address + ":" + targetNode.port);
 
+
+        ChordMessage backupRequestResponse = request.get();
+
+        CompletableFuture<NodeInfo> ret = new CompletableFuture<>();
+
+
+        if (backupRequestResponse instanceof BackupACKMessage) {
+            SimpleNodeInfo payloadTarget = ((NodeInfoMessage) backupRequestResponse).getNode();
+
+            SSLServerSocket payloadResponseSocket = Network.createServerSocket(0);
+            payloadResponseSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
+
+            BackupPayloadMessage payloadMsg = new BackupPayloadMessage(new SimpleNodeInfo(this.node.getNodeInfo().address, payloadResponseSocket.getLocalPort()), replicaId, fileContent);
+
+            CompletableFuture<ChordMessage> payloadResponse = this.node.getCommunicator().async_listenOnSocket(payloadResponseSocket);
+
+            this.node.getCommunicator().send(Utils.createClientSocket(payloadTarget.address, payloadTarget.port), payloadMsg);
+
+            ChordMessage payloadResponseMessage = payloadResponse.get();
+
+
+            if (payloadResponseMessage instanceof BackupNACKMessage) {
+                ConsoleLogger.log(SEVERE, "Failed to store replica of file!");
+                ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
+            } else if (payloadResponseMessage instanceof BackupConfirmMessage) {
+                ret.complete(new NodeInfo(((NodeInfoMessage) payloadResponseMessage).getNode()));
             }
-        } catch (IOException | NoSuchAlgorithmException e) {
-            e.printStackTrace();
+        } else if (backupRequestResponse instanceof BackupNACKMessage) {
+
+            ConsoleLogger.log(SEVERE, "No peer had enough space to store file!");
+
+            ret.completeExceptionally(new NoSpaceException());
+        } else if (backupRequestResponse instanceof BackupConfirmMessage) {
+            ret.complete(new NodeInfo(((NodeInfoMessage) backupRequestResponse).getNode()));
+        } else {
+            ret.completeExceptionally(new Exception("Received non-supported message answering to backup request"));
         }
+
+        return ret;
+    }
+
+    public CompletableFuture<NodeInfo> requestBackup(ReplicaIdentifier replicaId, byte[] fileContent) throws InterruptedException, ExecutionException, NoSuchAlgorithmException, IOException {
+        NodeInfo targetNode = this.node.findSuccessor(replicaId.getHash());
+
+        return requestBackup(replicaId, fileContent, targetNode);
+    }
+
+    public void handleBackupRequest(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
+        if (new NodeInfo(request.getOriginNode()).id.equals(this.node.getNodeInfo().id) && !request.isOriginalRequest()) {
+            this.node.getCommunicator().send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port),
+                    new BackupNACKMessage(request.getResponseSocketInfo(), request.getReplicaId()));
+
+            return;
+        }
+        this.checkStoreReplica(request);
     }
 }

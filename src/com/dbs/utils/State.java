@@ -1,13 +1,12 @@
 package com.dbs.utils;
 
-import com.dbs.backup.FileIdentifier;
-import com.dbs.backup.NoSpaceException;
-import com.dbs.backup.ReplicaIdentifier;
+import com.dbs.protocols.backup.FileIdentifier;
+import com.dbs.protocols.backup.NoSpaceException;
+import com.dbs.protocols.backup.ReplicaIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 
-import java.io.File;
 import java.io.Serializable;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;

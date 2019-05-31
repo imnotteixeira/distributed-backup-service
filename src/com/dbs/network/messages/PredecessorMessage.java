@@ -2,7 +2,6 @@ package com.dbs.network.messages;
 
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
-import com.dbs.chord.operations.PredecessorRequestOperationEntry;
 import com.dbs.network.NullNodeInfo;
 import com.dbs.network.NullSimpleNodeInfo;
 import com.dbs.utils.ConsoleLogger;
@@ -28,7 +27,6 @@ public class PredecessorMessage extends NodeInfoMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        n.concludeOperation(new PredecessorRequestOperationEntry(sender));
     }
 
 }

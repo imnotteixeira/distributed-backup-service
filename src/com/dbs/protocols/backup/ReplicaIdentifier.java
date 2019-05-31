@@ -1,4 +1,4 @@
-package com.dbs.backup;
+package com.dbs.protocols.backup;
 
 import java.io.Serializable;
 import java.math.BigInteger;

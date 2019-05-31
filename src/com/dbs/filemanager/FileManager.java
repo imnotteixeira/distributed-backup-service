@@ -1,7 +1,7 @@
 package com.dbs.filemanager;
 
-import com.dbs.backup.FileIdentifier;
-import com.dbs.backup.ReplicaIdentifier;
+import com.dbs.protocols.backup.FileIdentifier;
+import com.dbs.protocols.backup.ReplicaIdentifier;
 import com.dbs.chord.Chord;
 import com.dbs.utils.ByteToHash;
 
@@ -15,7 +15,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;

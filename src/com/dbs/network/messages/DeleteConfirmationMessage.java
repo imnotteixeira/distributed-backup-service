@@ -1,6 +1,5 @@
 package com.dbs.network.messages;
 
-import com.dbs.backup.FileIdentifier;
 import com.dbs.chord.Node;
 import com.dbs.chord.SimpleNodeInfo;
 

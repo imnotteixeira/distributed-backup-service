@@ -22,7 +22,6 @@ public class SuccessorMessage extends NodeInfoMessage {
 
     @Override
     public void handle(Node n) {
-        n.concludeOperation(new SuccessorRequestOperationEntry(key));
     }
 
 }

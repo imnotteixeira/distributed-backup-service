@@ -1,11 +1,15 @@
-package com.dbs.backup;
+package com.dbs.protocols;
 
-import java.rmi.*;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 
-public interface BackupService extends Remote {
+public interface IDistributedBackupService extends Remote {
+
     String backup(String file, int repDegree) throws RemoteException;
+    String state() throws RemoteException;
     String restore(String file) throws RemoteException;
     String delete(String file) throws RemoteException;
-    String state() throws RemoteException;
     String reclaim(int newSizeBytes) throws RemoteException;
+
 }
+
