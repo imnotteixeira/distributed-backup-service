@@ -15,11 +15,12 @@ public class TestApp {
             BackupService peer = TestApp.lookup(args[0]);
             switch (args[1]) {
                 case "BACKUP":
-                    if(args.length != 3){
-                        System.out.println("No file was provided. Usage: <PeerAP> BACKUP <fileName>");
+                    if(args.length != 4){
+                        System.out.println("No file was provided. Usage: <PeerAP> BACKUP <fileName> <repDegree>");
                     }else {
-                        System.out.println("Backing up file " + args[2] + "...\n");
-                        System.out.println(peer.backup(args[2]));
+                        int repDegree = Integer.parseInt(args[3]);
+                        System.out.println("Backing up file " + args[2] + " with replication degree of " +  repDegree + "...\n");
+                        System.out.println(peer.backup(args[2], repDegree));
                     }
                     break;
                 case "RESTORE":

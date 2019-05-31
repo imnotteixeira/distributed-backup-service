@@ -8,10 +8,8 @@ import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 import com.dbs.utils.Network;
-import com.sun.xml.internal.ws.util.CompletedFuture;
 
 import javax.net.ssl.SSLServerSocket;
-import javax.net.ssl.SSLServerSocketFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -53,7 +51,7 @@ public class BackupManager implements BackupService {
     }
 
     @Override
-    public String backup(String file) throws RemoteException {
+    public String backup(String file, int repDegree) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting backup");
 
 
@@ -63,7 +61,7 @@ public class BackupManager implements BackupService {
         ReplicaIdentifier[] replicaIds;
         byte[] fileContent;
         try {
-            replicaIds = FileManager.generateReplicaIds(file, Node.REPLICATION_DEGREE);
+            replicaIds = FileManager.generateReplicaIds(file, repDegree);
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new RemoteException("Could not generate file ids", e);
         }
