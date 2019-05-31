@@ -123,18 +123,6 @@ public class BackupManager implements BackupService {
 
     }
 
-    public boolean hasReplica(ReplicaIdentifier id) {
-        return this.node.getState().hasReplica(id);
-    }
-
-    public boolean hasFile(FileIdentifier id) {
-        return this.node.getState().hasFile(id);
-    }
-
-    public synchronized boolean canStore(long fileSize) {
-        return this.node.getState().hasSpace(fileSize);
-    }
-
     public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         try {
@@ -234,14 +222,14 @@ public class BackupManager implements BackupService {
             if (this.node.getState().hasFile(fileId)) {
                 ConsoleLogger.log(SEVERE, "I have the file.");
                 this.node.restoreFromOwnStorage(fileId);
+                return "Restored from own storage";
             } else {
                 ReplicaIdentifier[] replicaIds;
                 replicaIds = FileManager.generateReplicaIds(fileId, Node.REPLICATION_DEGREE);
                 for (ReplicaIdentifier r: replicaIds) {
                     try {
                         NodeInfo res = this.node.requestRestore(r).get();
-                        ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port);
-                        break;
+                        return "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port;
                     } catch (ExecutionException | InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -251,7 +239,7 @@ public class BackupManager implements BackupService {
             e.printStackTrace();
         }
 
-        return null;
+        return "Failed to restore file.";
     }
 
     @Override

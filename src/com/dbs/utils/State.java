@@ -97,6 +97,10 @@ public class  State implements Serializable {
         return hasFile(id.getFileId()) && this.localReplicas.get(id.getFileId()).contains(id);
     }
 
+    public SimpleNodeInfo getReplicaLocation(ReplicaIdentifier id) {
+        return this.replicasLocation.getOrDefault(id, null);
+    }
+
     public void deleteReplica(ReplicaIdentifier id) {
         if (hasReplica(id)) {
             localReplicas.get(id.getFileId()).remove(id);
@@ -108,15 +112,6 @@ public class  State implements Serializable {
         if (hasFile(id)) {
             localReplicas.remove(id);
         }
-    }
-
-    public String getReplicaFromFileId(FileIdentifier fileId) {
-        HashSet<ReplicaIdentifier> replicaIdentifiers = this.localReplicas.get(fileId);
-        ReplicaIdentifier replica;
-        for (ReplicaIdentifier r : replicaIdentifiers) {
-            return r.getHash().toString();
-        }
-        return null;
     }
 
     private String storedFilesString() {
