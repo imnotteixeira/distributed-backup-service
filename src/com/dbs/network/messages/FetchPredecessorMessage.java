@@ -20,7 +20,6 @@ public class FetchPredecessorMessage extends ChordMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        ConsoleLogger.log(Level.WARNING, "Received FETCH PREDECESSOR Message");
         n.handlePredecessorRequest(this.responseSocketInfo);
     }
 }

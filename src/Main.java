@@ -53,25 +53,5 @@ public class Main {
             e.printStackTrace();
         }
 
-//        try {
-//
-//            Path folder = FileManager.getOrCreateDirectory("test");
-//
-//            byte[] data = FileManager.readFromFile("asd.asd");
-//
-//            FileManager.writeToFile(Paths.get(folder.toString(), "filecopy").toString(), data);
-//
-//            System.out.println(new String(data, 0, data.length));
-//        } catch (ExecutionException e) {
-//            e.printStackTrace();
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-
-
     }
 }

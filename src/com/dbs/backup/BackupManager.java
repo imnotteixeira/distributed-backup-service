@@ -120,16 +120,13 @@ public class BackupManager implements BackupService {
             BackupResponseMessage msg;
 
             if(this.node.getState().hasFileToStore(request.getReplicaId())){
-                System.out.println("I already have the file!");
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
                 this.node.getState().addReplica(request.getReplicaId());
             }else{
-                System.out.println("I Dont have the file yet, but you can send!");
                 msg = new BackupACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }
 
             this.node.getState().setReplicaLocation(request.getReplicaId(), new SimpleNodeInfo(this.node.getNodeInfo()));
-            System.out.println("Sending the above response to " + request.getResponseSocketInfo().address + ":" + request.getResponseSocketInfo().port);
             this.node.getCommunicator().send(Utils.createClientSocket(request.getResponseSocketInfo().address, request.getResponseSocketInfo().port), msg);
         } catch (NoSpaceException e) {
 
@@ -169,12 +166,10 @@ public class BackupManager implements BackupService {
             }
 
             BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
-            System.out.println("answering to "+ backupPayloadMessage.getResponseSocketInfo().address + ":" + backupPayloadMessage.getResponseSocketInfo().port + " - thanks for the file!");
             this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getResponseSocketInfo().address, backupPayloadMessage.getResponseSocketInfo().port), msg);
 
         }catch(NoSpaceException e){
             BackupNACKMessage msg = new BackupNACKMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
-            System.out.println("Could not store replica of "+ backupPayloadMessage.getResponseSocketInfo().address + ":" + backupPayloadMessage.getResponseSocketInfo().port + " after all");
             this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getResponseSocketInfo().address, backupPayloadMessage.getResponseSocketInfo().port), msg);
         }
     }
@@ -184,7 +179,7 @@ public class BackupManager implements BackupService {
         this.node.getState().getReplicasLocation().forEach((replica, location) -> {
             if(between(replica.hash, this.node.getNodeInfo().id, otherNode.id)) {
                 try {
-                    ConsoleLogger.log(Level.SEVERE, "Sending replica " + replica.getHash() + " to new predecessor " + otherNode.id);
+                    ConsoleLogger.log(Level.INFO, "Sending replica " + replica.getHash() + " to new predecessor " + otherNode.id);
 
                     UpdateReplicaLocationMessage updateReplicaLocationInPredecessorMsg = new UpdateReplicaLocationMessage(replica, location);
 
@@ -240,6 +235,7 @@ public class BackupManager implements BackupService {
 
         try {
             FileIdentifier fileId = FileIdentifier.fromPath(file);
+
 
             if (this.desiredFileRepDegree.get(fileId) == null) {
                 return "File is not backed up";

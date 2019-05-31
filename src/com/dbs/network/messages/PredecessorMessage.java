@@ -28,7 +28,6 @@ public class PredecessorMessage extends NodeInfoMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        ConsoleLogger.log(Level.WARNING, "Received PREDECESSOR Message");
         n.concludeOperation(new PredecessorRequestOperationEntry(sender));
     }
 

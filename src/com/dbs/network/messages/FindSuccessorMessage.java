@@ -27,8 +27,6 @@ public class FindSuccessorMessage extends ChordMessage {
 
     @Override
     public void handle(Node n) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
-        ConsoleLogger.log(Level.WARNING, "Received FETCH SUCCESSOR Message");
-
         n.handleSuccessorRequest(this.responseSocketInfo, this.key);
     }
 

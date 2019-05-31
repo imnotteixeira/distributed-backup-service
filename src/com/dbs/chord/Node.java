@@ -122,8 +122,6 @@ public class Node implements Chord {
     @Override
     public NodeInfo findSuccessor(BigInteger key) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
-        ConsoleLogger.log(Level.INFO, "Someone is looking for node responsible for " + key);
-
         //if this is the starter node, it is responsible for any key for now
         if (this.successor.id.equals(this.nodeInfo.id)) {
             return this.nodeInfo;
@@ -184,9 +182,6 @@ public class Node implements Chord {
         FindSuccessorMessage msg = new FindSuccessorMessage(new SimpleNodeInfo(this.nodeInfo.address, tempSocket.getLocalPort()), key);
 
         SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(targetNode.address, targetNode.port);
-
-
-        ConsoleLogger.log(Level.INFO, "Listening for messages on port " + tempSocket.getLocalPort() + " for " + REQUEST_TIMEOUT_MS + "ms...");
 
         Future<NodeInfo> request = this.communicator.listenOnSocket(tempSocket);
         this.communicator.send(targetSocket, msg);
@@ -251,8 +246,6 @@ public class Node implements Chord {
     @Override
     public void notify(NodeInfo successor) throws IOException, NoSuchAlgorithmException {
 
-        ConsoleLogger.log(Level.INFO, "Notifying successor " + successor.id + " on port " + successor.port);
-
         NotifySuccessorMessage msg = new NotifySuccessorMessage(new SimpleNodeInfo(this.nodeInfo));
 
         this.communicator.send(Utils.createClientSocket(successor.address, successor.port), msg);
@@ -266,7 +259,6 @@ public class Node implements Chord {
      */
     @Override
     public void handlePredecessorNotification(SimpleNodeInfo potentialPredecessorInfo) throws IOException, NoSuchAlgorithmException {
-        ConsoleLogger.log(Level.WARNING, "Received a potential predecessor NOTIFICATION from node at port " + potentialPredecessorInfo.port);
         NodeInfo potentialPredecessor = new NodeInfo(potentialPredecessorInfo);
 
         if (this.predecessor == null || this.predecessor.id.equals(this.nodeInfo.id) || between(potentialPredecessor.id, this.predecessor.id, this.nodeInfo.id)) {
@@ -282,8 +274,6 @@ public class Node implements Chord {
      */
     @Override
     public void stabilize() throws IOException, InterruptedException, NoSuchAlgorithmException {
-        ConsoleLogger.log(Level.INFO, "Stabilizing Network...");
-
         NodeInfo x;
         if (this.successor.id.equals(this.nodeInfo.id)) {
 
@@ -292,7 +282,6 @@ public class Node implements Chord {
             x = this.predecessor;
 
         } else {
-            ConsoleLogger.log(Level.INFO, "Will request predecessor of " + this.successor.id);
             try {
                 x = requestPredecessor(this.successor);
             } catch (ExecutionException | SocketException e) {
@@ -342,8 +331,6 @@ public class Node implements Chord {
 
             this.communicator.send(Utils.createClientSocket(this.predecessor.address, this.predecessor.port), msg);
 
-            ConsoleLogger.log(Level.INFO, "Sent predecessor status check for node: " + this.predecessor.id);
-
             request.get();
 
         } catch (Exception e) {
@@ -383,8 +370,6 @@ public class Node implements Chord {
 
         this.communicator.send(Utils.createClientSocket(node.address, node.port), msg);
 
-        ConsoleLogger.log(Level.INFO, "Sent predecessor request for node at " + node.address + ":" + node.port);
-
         this.ongoingOperations.put(new PredecessorRequestOperationEntry(new SimpleNodeInfo(node)), request);
 
         return request.get();
@@ -401,7 +386,6 @@ public class Node implements Chord {
 
         SSLSocket targetSocket = (SSLSocket) SSLSocketFactory.getDefault().createSocket(responseSocketInfo.address, responseSocketInfo.port);
 
-        ConsoleLogger.log(Level.WARNING, "Sending Predecessor info for node on port " + targetSocket.getPort());
         this.communicator.send(targetSocket, msg);
 
     }
@@ -506,7 +490,6 @@ public class Node implements Chord {
 
 
         if (backupRequestResponse instanceof BackupACKMessage) {
-            System.out.println("Received ACK, sending file!");
             SimpleNodeInfo payloadTarget = ((NodeInfoMessage) backupRequestResponse).getNode();
 
             SSLServerSocket payloadResponseSocket = Network.createServerSocket(0);
