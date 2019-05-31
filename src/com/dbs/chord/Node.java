@@ -1,6 +1,7 @@
 package com.dbs.chord;
 
 import com.dbs.backup.BackupManager;
+import com.dbs.backup.NoSpaceException;
 import com.dbs.backup.ReplicaIdentifier;
 import com.dbs.chord.operations.OperationEntry;
 import com.dbs.chord.operations.PredecessorRequestOperationEntry;
@@ -19,7 +20,6 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -37,7 +37,7 @@ public class Node implements Chord{
     private static final int STABILIZATION_INTERVAL_MS = 200;
     private static final int FIX_FINGER_INTERVAL_MS = 200;
     private static final int CHECK_PREDECESSOR_INTERVAL_MS = 200;
-    private static String NODE_PATH;
+    public static String NODE_PATH;
 
     private BackupManager backupManager;
 
@@ -549,23 +549,12 @@ public class Node implements Chord{
         }
 
 
-        this.backupManager.storeReplica(request);
+        this.backupManager.checkStoreReplica(request);
 
     }
 
     public void handleBackupPayload(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
-
-        //TALVEZ PASSAR ISTO PARA UMA FUNC DE BACKUP MANAGER
-
-        Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
-
-        FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getHash().toString()).toString(), backupPayloadMessage.getData());
-
-        BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.nodeInfo), backupPayloadMessage.getReplicaId());
-
-
-        System.out.println("answering to "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " - thanks for the file!");
-        this.communicator.send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
+        this.backupManager.storeReplica(backupPayloadMessage);
     }
 
     public State getState() {

@@ -5,15 +5,13 @@ import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
-import com.dbs.network.messages.BackupACKMessage;
-import com.dbs.network.messages.BackupConfirmMessage;
-import com.dbs.network.messages.BackupRequestMessage;
-import com.dbs.network.messages.BackupResponseMessage;
+import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Path;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
@@ -127,12 +125,12 @@ public class BackupManager implements BackupService {
         return this.node.getState().hasSpace(fileSize);
     }
 
-    public void storeReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
+    public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException {
 
         try {
             BackupResponseMessage msg;
 
-            if(this.node.getState().addReplica(request.getReplicaId())){
+            if(this.node.getState().hasFileToStore(request.getReplicaId())){
                 System.out.println("I already have the file!");
                 msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId());
             }else{
@@ -167,5 +165,23 @@ public class BackupManager implements BackupService {
     public String state() throws RemoteException {
         ConsoleLogger.log(INFO,"Printing state");
         return null;
+    }
+
+    public void storeReplica(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
+        try {
+            if (!this.node.getState().addReplica(backupPayloadMessage.getReplicaId())) {
+                Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+                FileManager.writeToFile(directory.resolve(backupPayloadMessage.getReplicaId().getHash().toString()).toString(), backupPayloadMessage.getData());
+            }
+
+            BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
+            System.out.println("answering to "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " - thanks for the file!");
+            this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
+
+        }catch(NoSpaceException e){
+            BackupConfirmMessage msg = new BackupConfirmMessage(new SimpleNodeInfo(this.node.getNodeInfo()), backupPayloadMessage.getReplicaId());
+            System.out.println("Could not store replica of "+ backupPayloadMessage.getOriginNode().address + ":" + backupPayloadMessage.getOriginNode().port + " after all");
+            this.node.getCommunicator().send(Utils.createClientSocket(backupPayloadMessage.getOriginNode().address, backupPayloadMessage.getOriginNode().port), msg);
+        }
     }
 }

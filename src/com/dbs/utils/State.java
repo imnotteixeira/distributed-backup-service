@@ -45,6 +45,25 @@ public class State implements Serializable {
     /**
      *
      * @param replicaId
+     * @return true if the file was already stored. false if it was not.
+     * @throws NoSpaceException - the replica was not stored
+     */
+    public synchronized boolean hasFileToStore(ReplicaIdentifier replicaId) throws NoSpaceException {
+        if(hasReplica(replicaId)) return true;
+
+        if(hasFile(replicaId.getFileId())){
+            return true;
+        }
+
+        if (hasSpace(replicaId.getFileId().getFileSize())){
+            return false;
+        }
+        throw new NoSpaceException();
+    }
+
+    /**
+     *
+     * @param replicaId
      * @return true if the file was already stored. false if it was not. Either way, the replica is stored
      * @throws NoSpaceException - the replica was not stored
      */
