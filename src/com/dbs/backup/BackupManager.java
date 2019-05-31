@@ -22,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 
@@ -32,9 +33,11 @@ public class BackupManager implements BackupService {
 
     private final Node node;
 
+    private final ConcurrentHashMap<FileIdentifier, Integer> desiredFileRepDegree;
+
     public BackupManager(Node node) {
         this.node = node;
-
+        this.desiredFileRepDegree = new ConcurrentHashMap<>();
         BackupService service = null;
         try {
             service = (BackupService) UnicastRemoteObject.exportObject(this, 0);
@@ -61,7 +64,9 @@ public class BackupManager implements BackupService {
         ReplicaIdentifier[] replicaIds;
         byte[] fileContent;
         try {
-            replicaIds = FileManager.generateReplicaIds(file, repDegree);
+            FileIdentifier fileId = FileIdentifier.fromPath(file);
+            replicaIds = FileManager.generateReplicaIds(fileId, repDegree);
+            this.desiredFileRepDegree.put(fileId, repDegree);
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new RemoteException("Could not generate file ids", e);
         }
@@ -202,16 +207,19 @@ public class BackupManager implements BackupService {
     @Override
     public String restore(String file) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting restore");
-
         try {
             FileIdentifier fileId = FileIdentifier.fromPath(file);
+            if (this.desiredFileRepDegree.get(fileId) == null) {
+                ConsoleLogger.log(SEVERE, "File is not backed up");
+                return "File is not backed up";
+            }
             if (this.node.getState().hasFile(fileId)) {
                 ConsoleLogger.log(SEVERE, "I have the file.");
                 this.node.restoreFromOwnStorage(fileId);
                 return "Restored from own storage";
             } else {
                 ReplicaIdentifier[] replicaIds;
-                replicaIds = FileManager.generateReplicaIds(fileId, Node.REPLICATION_DEGREE);
+                replicaIds = FileManager.generateReplicaIds(fileId, this.desiredFileRepDegree.get(fileId));
                 for (ReplicaIdentifier r: replicaIds) {
                     try {
                         NodeInfo res = this.node.requestRestore(r).get();
@@ -234,7 +242,13 @@ public class BackupManager implements BackupService {
         StringBuilder retMsg = new StringBuilder();
 
         try {
-            ReplicaIdentifier[] replicaIds = FileManager.generateReplicaIds(file, Node.REPLICATION_DEGREE);
+            FileIdentifier fileId = FileIdentifier.fromPath(file);
+
+            if (this.desiredFileRepDegree.get(fileId) == null) {
+                return "File is not backed up";
+            }
+
+            ReplicaIdentifier[] replicaIds = FileManager.generateReplicaIds(fileId, this.desiredFileRepDegree.get(fileId));
 
             ArrayList<CompletableFuture<NodeInfo>> futures = new ArrayList<>();
 
@@ -252,6 +266,8 @@ public class BackupManager implements BackupService {
                     retMsg.append("Could not delete replica " + i + " with hash " + replicaIds[i].getHash() + "\n");
                 }
             }
+
+            this.desiredFileRepDegree.computeIfPresent(fileId, (k, _v) -> this.desiredFileRepDegree.remove(k));
 
         } catch (IOException | NoSuchAlgorithmException e) {
             return "Failed to generate replica ids";

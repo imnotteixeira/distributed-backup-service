@@ -36,7 +36,6 @@ import static java.util.logging.Level.SEVERE;
 
 public class Node implements Chord {
 
-    public static final int REPLICATION_DEGREE = 3;
     public static final int INITIAL_SPACE_LIMIT_BYTES = (int) (600 * 10e3);
     public static final int REQUEST_TIMEOUT_MS = 5000;
     private static final int THREAD_POOL_SIZE = 150;
