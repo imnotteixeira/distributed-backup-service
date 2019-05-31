@@ -22,7 +22,11 @@ public class TestApp {
                     }
                     break;
                 case "RESTORE":
-                    System.out.println(peer.restore("file"));
+                    if(args.length != 3){
+                        System.out.println("No file was provided. Usage: <PeerAP> RESTORE <fileName>");
+                    }else {
+                        System.out.println(peer.restore(args[2]));
+                    }
                     break;
                 case "DELETE":
                     if(args.length != 3){

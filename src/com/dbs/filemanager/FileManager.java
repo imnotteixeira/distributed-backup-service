@@ -88,7 +88,7 @@ public class FileManager {
      * @param directoryName directory Name
      * @return Returns 0 on success and -1 if directory already exists
      */
-    public static Path createDirectory(String directoryName) throws IOException {
+    public static Path getOrCreateDirectory(String directoryName) throws IOException {
 
         try {
 
@@ -104,7 +104,7 @@ public class FileManager {
      * @param directoryName directory Name
      * @return Returns 0 on success and -1 if directory already exists
      */
-    public static Path createDirectory(String directoryName, String rootFolder) throws IOException {
+    public static Path getOrCreateDirectory(String directoryName, String rootFolder) throws IOException {
 
 
         Path path = Paths.get(rootFolder, directoryName);
@@ -120,24 +120,22 @@ public class FileManager {
     }
 
     public static ReplicaIdentifier[] generateReplicaIds(String filePath, int numIds) throws IOException, NoSuchAlgorithmException {
-        File file = new File(filePath);
 
-        String name = file.getName();
+        FileIdentifier fileId = FileIdentifier.fromPath(filePath);
 
-        BasicFileAttributes attr = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
+        return generateReplicaIds(fileId, numIds);
+    }
 
-        String creationTime = attr.creationTime().toString();
+    public static ReplicaIdentifier[] generateReplicaIds(FileIdentifier fileId, int numIds) throws IOException, NoSuchAlgorithmException {
 
         ReplicaIdentifier[] ids = new ReplicaIdentifier[numIds];
 
-        FileIdentifier fileId = new FileIdentifier(name, creationTime, attr.size());
-
         for (int i = 0; i < numIds; i++) {
             ids[i] = new ReplicaIdentifier(
-                        fileId,
-                        ByteToHash.convert(new StringBuffer()
-                            .append(name)
-                            .append(creationTime)
+                    fileId,
+                    ByteToHash.convert(new StringBuffer()
+                            .append(fileId.getFileName())
+                            .append(fileId.getCreationTime())
                             .append(i).toString().getBytes(), "SHA-256").mod(BigInteger.valueOf(2).pow(Chord.NUM_BITS_KEYS))
             );
         }

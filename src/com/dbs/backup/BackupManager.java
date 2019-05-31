@@ -104,18 +104,6 @@ public class BackupManager implements BackupService {
 
     }
 
-    public boolean hasReplica(ReplicaIdentifier id) {
-        return this.node.getState().hasReplica(id);
-    }
-
-    public boolean hasFile(FileIdentifier id) {
-        return this.node.getState().hasFile(id);
-    }
-
-    public synchronized boolean canStore(long fileSize) {
-        return this.node.getState().hasSpace(fileSize);
-    }
-
     public void checkStoreReplica(BackupRequestMessage request) throws IOException, NoSuchAlgorithmException, ExecutionException, InterruptedException {
 
         try {
@@ -166,7 +154,7 @@ public class BackupManager implements BackupService {
     public void storeReplica(BackupPayloadMessage backupPayloadMessage) throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException {
         try {
             if (!this.node.getState().addReplica(backupPayloadMessage.getReplicaId())) {
-                Path directory = FileManager.createDirectory("backup", Node.NODE_PATH);
+                Path directory = FileManager.getOrCreateDirectory("backup", Node.NODE_PATH);
                 FileManager.writeToFile(directory.resolve(String.valueOf(backupPayloadMessage.getReplicaId().getFileId().hashCode())).toString(), backupPayloadMessage.getData());
             }
 
@@ -210,7 +198,30 @@ public class BackupManager implements BackupService {
     @Override
     public String restore(String file) throws RemoteException {
         ConsoleLogger.log(INFO,"Starting restore");
-        return null;
+
+        try {
+            FileIdentifier fileId = FileIdentifier.fromPath(file);
+            if (this.node.getState().hasFile(fileId)) {
+                ConsoleLogger.log(SEVERE, "I have the file.");
+                this.node.restoreFromOwnStorage(fileId);
+                return "Restored from own storage";
+            } else {
+                ReplicaIdentifier[] replicaIds;
+                replicaIds = FileManager.generateReplicaIds(fileId, Node.REPLICATION_DEGREE);
+                for (ReplicaIdentifier r: replicaIds) {
+                    try {
+                        NodeInfo res = this.node.requestRestore(r).get();
+                        return "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port;
+                    } catch (ExecutionException | InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        } catch (IOException | NoSuchAlgorithmException | InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+
+        return "Failed to restore file.";
     }
 
     @Override

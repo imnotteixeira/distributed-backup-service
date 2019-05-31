@@ -7,6 +7,7 @@ import com.dbs.chord.Node;
 import com.dbs.chord.NodeInfo;
 import com.dbs.chord.SimpleNodeInfo;
 
+import java.io.File;
 import java.io.Serializable;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class State implements Serializable {
+public class  State implements Serializable {
 
     private int maxSpace;
 
@@ -97,6 +98,10 @@ public class State implements Serializable {
 
     public boolean hasReplica(ReplicaIdentifier id) {
         return hasFile(id.getFileId()) && this.localReplicas.get(id.getFileId()).contains(id);
+    }
+
+    public SimpleNodeInfo getReplicaLocation(ReplicaIdentifier id) {
+        return this.replicasLocation.getOrDefault(id, null);
     }
 
     public void deleteReplica(ReplicaIdentifier id) {
