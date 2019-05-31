@@ -7,6 +7,7 @@ import com.dbs.chord.Utils;
 import com.dbs.filemanager.FileManager;
 import com.dbs.network.messages.*;
 import com.dbs.utils.ConsoleLogger;
+import com.dbs.utils.Network;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -123,7 +124,7 @@ public class BackupManager implements BackupService {
 
             if(request.isOriginalRequest()){
 
-                SSLServerSocket successorRequestSocket = (SSLServerSocket) SSLServerSocketFactory.getDefault().createServerSocket(0);
+                SSLServerSocket successorRequestSocket = Network.createServerSocket(0);
                 successorRequestSocket.setSoTimeout(REQUEST_TIMEOUT_MS);
 
                 BackupRequestMessage msg = new BackupRequestMessage(new SimpleNodeInfo(this.node.getNodeInfo().address, successorRequestSocket.getLocalPort()), new SimpleNodeInfo(this.node.getNodeInfo()), request.getReplicaId(), false);
