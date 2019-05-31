@@ -18,6 +18,7 @@ public class TestApp {
                     if(args.length != 3){
                         System.out.println("No file was provided. Usage: <PeerAP> BACKUP <fileName>");
                     }else {
+                        System.out.println("Backing up file " + args[2] + "...\n");
                         System.out.println(peer.backup(args[2]));
                     }
                     break;
@@ -25,6 +26,7 @@ public class TestApp {
                     if(args.length != 3){
                         System.out.println("No file was provided. Usage: <PeerAP> RESTORE <fileName>");
                     }else {
+                        System.out.println("Restoring file " + args[2] + "...\n");
                         System.out.println(peer.restore(args[2]));
                     }
                     break;
@@ -32,6 +34,7 @@ public class TestApp {
                     if(args.length != 3){
                         System.out.println("No file was provided. Usage: <PeerAP> DELETE <fileName>");
                     }else {
+                        System.out.println("Deleting file " + args[2] + "...\n");
                         System.out.println(peer.delete(args[2]));
                     }
                     break;
@@ -42,6 +45,7 @@ public class TestApp {
                     if(args.length != 3){
                         System.out.println("No number of bytes were provided. Usage: <PeerAP> RECLAIM <newSizeBytes>");
                     }else {
+                        System.out.println("Reclaiming space: " + args[2] + "bytes...\n");
                         System.out.println(peer.reclaim(Integer.parseInt(args[2])));
                     }
                     break;

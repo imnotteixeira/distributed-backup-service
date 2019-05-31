@@ -46,6 +46,8 @@ public abstract class ChordMessage implements Serializable {
                     return (DeleteReplicaMessage) obj;
                 case DELETE_CONFIRM:
                     return (DeleteConfirmationMessage) obj;
+                case NOT_FOUND:
+                    return (NotFoundMessage) obj;
                 default:
                     return msg;
             }
@@ -68,7 +70,8 @@ public abstract class ChordMessage implements Serializable {
         RESTORE_REQUEST,
         RESTORE_PAYLOAD,
         DELETE,
-        DELETE_CONFIRM
+        DELETE_CONFIRM,
+        NOT_FOUND
     }
 
     private MESSAGE_TYPE type;
