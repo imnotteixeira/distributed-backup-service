@@ -240,7 +240,7 @@ public class BackupManager implements BackupService {
                 for (ReplicaIdentifier r: replicaIds) {
                     try {
                         NodeInfo res = this.node.requestRestore(r).get();
-                        ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node " + res.getAccessPoint());
+                        ConsoleLogger.log(SEVERE, "Restored file " + fileId.getFileName() + " from node at " + res.address + ":" + res.port);
                         break;
                     } catch (ExecutionException | InterruptedException e) {
                         e.printStackTrace();

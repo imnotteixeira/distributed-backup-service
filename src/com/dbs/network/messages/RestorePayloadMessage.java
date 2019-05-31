@@ -17,7 +17,7 @@ public class RestorePayloadMessage extends ChordMessage {
     byte[] data;
 
     public RestorePayloadMessage(SimpleNodeInfo originNode, ReplicaIdentifier replicaId, byte[] data) {
-        super(MESSAGE_TYPE.BACKUP_PAYLOAD);
+        super(MESSAGE_TYPE.RESTORE_PAYLOAD);
         this.originNode = originNode;
         this.replicaId = replicaId;
         this.data = data;
